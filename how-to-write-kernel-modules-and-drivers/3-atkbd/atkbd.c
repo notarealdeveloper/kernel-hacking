@@ -21,7 +21,7 @@
 
 #define DRIVER_DESC	"AT and PS/2 keyboard driver"
 MODULE_AUTHOR("Jason Mothafuckin Wilkes");
-MODULE_DESCRIPTION(DRIVER_DESC);
+// MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
 
@@ -69,7 +69,7 @@ static const unsigned short atkbd_unxlate_table[128] = {
 struct atkbd {
 
 	struct ps2dev ps2dev;
-	struct input_dev *dev;
+	struct input_dev *dev;	/* Defined in include/linux/input.h */
 
 	/* Written only during init */
 	char phys[32];
@@ -81,24 +81,10 @@ struct atkbd {
 	unsigned char emul;
 };
 
-/* Checking to make sure the memset really is redundant.
- * i.e., checking that when we embed an array in a struct,
- * it really *is* embedded inline, and not made into a pointer.
- * It shouldn't be, but C has odd rules about when arrays are
- * converted to pointers, so it's best to be sure.
- */
-struct mystruct {
-	long beg;	// 8
-	char bytes[24];	// 24
-	long end;	// 8
-} *mystruct;
-
-
 /* Here we process the data received from the keyboard into events. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
-	struct input_dev *dev = atkbd->dev;
 	unsigned int code = data;
 
 	/* Note to self: "data" is the scancode, i.e., 0x01 for ESC, 0x02 for 1, etc.
@@ -130,8 +116,8 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 
 	atkbd->emul = 0;
 
-	input_event(dev, EV_KEY, atkbd->keycode[code], data < 0x80);
-	input_sync(dev);
+	input_event(atkbd->dev, EV_KEY, atkbd->keycode[code], data < 0x80);
+	input_sync(atkbd->dev);
 
 out:
 	return IRQ_HANDLED;
@@ -147,120 +133,63 @@ out:
 static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 {
 	struct atkbd *atkbd;
-	int err = -ENOMEM;
-
-	struct ps2dev *ps2dev;
-
-	int i;
 	unsigned int scancode;
-
-        int j;
-	struct input_dev *input_dev;
+	int err = -ENOMEM;
+	int i;
 
 	printk(KERN_DEBUG "[*] In atkbd_connect\n");
 
 	atkbd = kzalloc(sizeof(struct atkbd), GFP_KERNEL);
-
 	atkbd->dev = input_allocate_device();
-
 	ps2_init(&atkbd->ps2dev, serio);
 
-	if (serio->id.type == SERIO_8042_XL)
-		atkbd->translated = true;
+	//if (serio->id.type == SERIO_8042_XL)
+	//	atkbd->translated = true;
 
-	serio_set_drvdata(serio, atkbd);
+	serio->dev.driver_data = atkbd; // serio_set_drvdata(serio, atkbd);
 	serio_open(serio, drv);
 
 
-        /*********************/
         /* BEGIN ATKBD PROBE */
-        /*********************/
-        ps2dev = &atkbd->ps2dev;
-
-	if (ps2_command(ps2dev, NULL, ATKBD_CMD_ENABLE)) {
+	if (ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_ENABLE)) {
 		printk(KERN_INFO "[*] ps2_command returned nonzero. Bailing out!\n");
 		err = -ENODEV;
                 goto fail;
 	}
 
-        /*******************/
-        /* END ATKBD PROBE */
-        /*******************/
-
-        /***************************/
         /* BEGIN SET KEYCODE TABLE */
-        /***************************/
 	printk(KERN_DEBUG "[*] In atkbd_set_keycode_table\n");
-
-	/* Not needed, since kzalloc is used above, and the keycode[ATKBD_KEYMAP_SIZE] array is embedded in the struct */
-	// memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
-
-	/* Experimenting to make sure the above memset isn't actually needed */
-
-	/*
-	mystruct = kzalloc(sizeof(struct mystruct), GFP_KERNEL);
-	printk("sizeof(struct mystruct) == %ld\n", sizeof(struct mystruct));
-
-	memset(mystruct, 0xff, sizeof(struct mystruct));
-	memset(mystruct->bytes, 0x69, sizeof(mystruct->bytes));
-	for (i = 0; i < sizeof(*mystruct); i++)
-		printk("*(mystruct+%d) == %02x\n", i, *((unsigned char *)mystruct+i));
-
-	kfree(mystruct);
-	*/
-
 	for (i = 0; i < 128; i++) {
 		scancode = atkbd_unxlate_table[i];
-		atkbd->keycode[i] = atkbd_set2_keycode[scancode];
-		atkbd->keycode[i | 0x80] = atkbd_set2_keycode[scancode | 0x80];
+		atkbd->keycode[i] 	= atkbd_set2_keycode[scancode];
+		atkbd->keycode[i|0x80]  = atkbd_set2_keycode[scancode|0x80];
 	}
-        /*************************/
-        /* END SET KEYCODE TABLE */
-        /*************************/
 
-        /**************************/
         /* BEGIN SET DEVICE ATTRS */
-        /**************************/
-        /* This was atkbd_set_device_attrs(atkbd); */
-        /* The variables input_dev and j are local to this block */
-        input_dev = atkbd->dev;
 	printk(KERN_DEBUG "[*] In atkbd_set_device_attrs\n");
 
-	/* The "2" in the next line was atkbd->set, which was 2 */
-	//snprintf(atkbd->name, sizeof(atkbd->name), "AT %s Set %d keyboard", atkbd->translated ? "Translated" : "Raw", 2);
-	input_dev->name = "The honorable keyboard of Jason Wilkes";
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
-	input_dev->phys = atkbd->phys;
-	input_set_drvdata(input_dev, atkbd);
-	input_dev->evbit[0]  = BIT_MASK(EV_KEY);
+	atkbd->dev->phys = atkbd->phys;
+	atkbd->dev->name = "The honorable keyboard of Jason Wilkes";
+	input_set_drvdata(atkbd->dev, atkbd);
+	atkbd->dev->evbit[0]  = BIT_MASK(EV_KEY);
 
         /* Print some of the info we just set */
-        printk(KERN_DEBUG "[*] %s : input_dev->name == %s\n", __func__, input_dev->name);
-        printk(KERN_DEBUG "[*] %s : input_dev->phys == %s\n", __func__, input_dev->phys);
-
-        /* From include/linux/input.h
-         * ==========================
-         * struct input_dev - represents an input device
-         * @name: name of the device
-         * @phys: physical path to the device in the system hierarchy
-         * @evbit: bitmap of types of events supported by the device (EV_KEY, EV_REL, etc.)
-         * @keybit: bitmap of keys/buttons this device has
-         */
-
-	for (j = 0; j < ATKBD_KEYMAP_SIZE; j++)
-		__set_bit(atkbd->keycode[j], input_dev->keybit);
+        printk(KERN_DEBUG "[*] %s : atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
+        printk(KERN_DEBUG "[*] %s : atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
 
 
-        /************************/
-        /* END SET DEVICE ATTRS */
-        /************************/
+	for (i = 0; i < ATKBD_KEYMAP_SIZE; i++)
+		__set_bit(atkbd->keycode[i], atkbd->dev->keybit);
 
 	input_register_device(atkbd->dev);
 
 	return 0;
 
-fail:	serio_close(serio);
-	serio_set_drvdata(serio, NULL);
+fail:
+	serio_close(serio);
+//	serio_set_drvdata(serio, NULL);
+	serio->dev.driver_data = NULL;
 	input_free_device(atkbd->dev);
 	kfree(atkbd);
 	return err;
@@ -273,26 +202,16 @@ static void atkbd_disconnect(struct serio *serio)
 
 	printk(KERN_DEBUG "[*] In atkbd_disconnect\n");
 
-	input_unregister_device(atkbd->dev);
 	serio_close(serio);
-	serio_set_drvdata(serio, NULL);
+	//serio_set_drvdata(serio, NULL);
+	serio->dev.driver_data = NULL;
+	input_unregister_device(atkbd->dev);
 	kfree(atkbd);
 }
 
 static struct serio_device_id atkbd_serio_ids[] = {
-	{
-		.type	= SERIO_8042,
-		.proto	= SERIO_ANY,
-		.id	= SERIO_ANY,
-		.extra	= SERIO_ANY,
-	},
-	{
-		.type	= SERIO_8042_XL,
-		.proto	= SERIO_ANY,
-		.id	= SERIO_ANY,
-		.extra	= SERIO_ANY,
-	},
-	{ 0 }
+	{.type	= SERIO_8042_XL,},
+	{0}
 };
 
 static struct serio_driver atkbd_drv = {
