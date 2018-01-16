@@ -72,16 +72,27 @@ struct atkbd {
 	struct input_dev *dev;
 
 	/* Written only during init */
-	char name[64];
 	char phys[32];
 
 	unsigned short keycode[ATKBD_KEYMAP_SIZE];
-	DECLARE_BITMAP(force_release_mask, ATKBD_KEYMAP_SIZE);
 	bool translated;
 
 	/* Accessed only from interrupt */
 	unsigned char emul;
 };
+
+/* Checking to make sure the memset really is redundant.
+ * i.e., checking that when we embed an array in a struct,
+ * it really *is* embedded inline, and not made into a pointer.
+ * It shouldn't be, but C has odd rules about when arrays are
+ * converted to pointers, so it's best to be sure.
+ */
+struct mystruct {
+	long beg;	// 8
+	char bytes[24];	// 24
+	long end;	// 8
+} *mystruct;
+
 
 /* Here we process the data received from the keyboard into events. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
@@ -181,8 +192,22 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
         /***************************/
 	printk(KERN_DEBUG "[*] In atkbd_set_keycode_table\n");
 
-	memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
-	bitmap_zero(atkbd->force_release_mask, ATKBD_KEYMAP_SIZE);
+	/* Not needed, since kzalloc is used above, and the keycode[ATKBD_KEYMAP_SIZE] array is embedded in the struct */
+	// memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
+
+	/* Experimenting to make sure the above memset isn't actually needed */
+
+	/*
+	mystruct = kzalloc(sizeof(struct mystruct), GFP_KERNEL);
+	printk("sizeof(struct mystruct) == %ld\n", sizeof(struct mystruct));
+
+	memset(mystruct, 0xff, sizeof(struct mystruct));
+	memset(mystruct->bytes, 0x69, sizeof(mystruct->bytes));
+	for (i = 0; i < sizeof(*mystruct); i++)
+		printk("*(mystruct+%d) == %02x\n", i, *((unsigned char *)mystruct+i));
+
+	kfree(mystruct);
+	*/
 
 	for (i = 0; i < 128; i++) {
 		scancode = atkbd_unxlate_table[i];
@@ -202,19 +227,16 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	printk(KERN_DEBUG "[*] In atkbd_set_device_attrs\n");
 
 	/* The "2" in the next line was atkbd->set, which was 2 */
-	snprintf(atkbd->name, sizeof(atkbd->name), "AT %s Set %d keyboard", atkbd->translated ? "Translated" : "Raw", 2);
+	//snprintf(atkbd->name, sizeof(atkbd->name), "AT %s Set %d keyboard", atkbd->translated ? "Translated" : "Raw", 2);
+	input_dev->name = "The honorable keyboard of Jason Wilkes";
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
-
-	input_dev->name = atkbd->name;
 	input_dev->phys = atkbd->phys;
-	// input_dev->id.bustype = BUS_I8042;
 	input_set_drvdata(input_dev, atkbd);
 	input_dev->evbit[0]  = BIT_MASK(EV_KEY);
-	// input_dev->rep[REP_DELAY] = 250;
-	// input_dev->rep[REP_PERIOD] = 33;
-	// input_dev->keycodesize = sizeof(unsigned short);
-	// input_dev->keycodemax = ARRAY_SIZE(atkbd_set2_keycode);
 
+        /* Print some of the info we just set */
+        printk(KERN_DEBUG "[*] %s : input_dev->name == %s\n", __func__, input_dev->name);
+        printk(KERN_DEBUG "[*] %s : input_dev->phys == %s\n", __func__, input_dev->phys);
 
         /* From include/linux/input.h
          * ==========================
@@ -228,9 +250,6 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	for (j = 0; j < ATKBD_KEYMAP_SIZE; j++)
 		__set_bit(atkbd->keycode[j], input_dev->keybit);
 
-        /* Print some of the info we just set */
-        printk(KERN_DEBUG "[*] %s : input_dev->name == %s\n", __func__, input_dev->name);
-        printk(KERN_DEBUG "[*] %s : input_dev->phys == %s\n", __func__, input_dev->phys);
 
         /************************/
         /* END SET DEVICE ATTRS */
