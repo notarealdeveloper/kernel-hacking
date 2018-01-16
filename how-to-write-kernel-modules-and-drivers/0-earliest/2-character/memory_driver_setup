@@ -1,0 +1,11 @@
+# Make a new device file
+mknod /dev/memory c 60 0
+
+# Unprotect it (may not be required)
+chmod 666 /dev/memory
+
+# Then compile memory.c the same way as always, and insmod it.
+# After that, you can echo strings into it. 
+# Make sure to echo -n to you don't echo the trailing newline :)
+echo -n abcdef > /dev/memory
+
