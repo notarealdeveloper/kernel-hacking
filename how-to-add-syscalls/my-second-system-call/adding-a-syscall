@@ -1,0 +1,88 @@
+############################################
+### ADDING A SYSCALL TO THE LINUX KERNEL ###
+############################################
+
+#########################################
+### include/uapi/asm-generic/unistd.h ###
+#########################################
+
+#define __NR_jwnix 281
+__SYSCALL(__NR_jwnix, sys_jwnix)
+#define __NR_waffle 282
+__SYSCALL(__NR_waffle, sys_waffle)
+
+#undef __NR_syscalls
+#define __NR_syscalls 283
+
+
+################################
+### include/linux/syscalls.h ###	/* NOT STRICTLY NEEDED */
+################################
+/* My syscalls! Just for fun */
+asmlinkage long sys_jwnix(void);
+asmlinkage long sys_waffle(unsigned long);
+
+#################################
+### NEW FILE : kernel/jwnix.c ###
+#################################
+
+#include <linux/syscalls.h>
+#include <linux/kernel.h>
+#include <linux/sched.h>
+
+#define msg(fmt, args...) \
+	printk("%s: " fmt "\n", __func__, ## args);
+
+SYSCALL_DEFINE0(jwnix)
+{
+	printk("%s: In syscall sys_jwnix! Congratulations!\n", __func__);
+	return 69;
+}
+
+SYSCALL_DEFINE1(waffle, unsigned long, arg)
+{
+	msg("sys_waffle: arg == %lu. current: %s (%d)\n", 
+		arg, current->comm, current->pid);
+
+	return 0;
+}
+
+##################################
+### NEW FILE : kernel/Makefile ###
+##################################
+
+Add: jwnix.o to the obj-y list.
+Later, get fancy and add it to Kconfig!
+
+####################################################
+### Instead of changing the files below, do this ###
+####################################################
+Add to: arch/x86/syscalls/syscall_64.tbl
+322	common	jwnix			sys_jwnix
+323	common	waffle			sys_waffle
+
+Add to: arch/x86/syscalls/syscall_32.tbl
+358	i386	jwnix			sys_jwnix
+359	i386	waffle			sys_waffle
+
+#######################################################
+### The above automatically generates these changes ###
+#######################################################
+
+Added to arch/x86/include/generated/asm/syscalls_64.h
+__SYSCALL_COMMON(322, sys_jwnix, sys_jwnix)
+__SYSCALL_COMMON(323, sys_waffle, sys_waffle)
+
+Added to arch/x86/include/generated/asm/syscalls_32.h
+__SYSCALL_I386(358, sys_jwnix, sys_jwnix)
+__SYSCALL_I386(359, sys_waffle, sys_waffle)
+
+Added to arch/x86/include/generated/uapi/asm/unistd_64.h
+#define __NR_jwnix  322
+#define __NR_waffle 323
+
+Added to arch/x86/include/generated/uapi/asm/unistd_32.h
+#define __NR_jwnix  358
+#define __NR_waffle 359
+
+

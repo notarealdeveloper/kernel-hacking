@@ -1,0 +1,71 @@
+############################################
+### ADDING A SYSCALL TO THE LINUX KERNEL ###
+############################################
+
+#########################################
+### include/uapi/asm-generic/unistd.h ###
+#########################################
+
+#define __NR_jwnix 281
+__SYSCALL(__NR_jwnix, sys_jwnix)
+
+#undef __NR_syscalls
+#define __NR_syscalls 283
+
+
+################################
+### include/linux/syscalls.h ###	/* NOT STRICTLY NEEDED */
+################################
+/* My syscalls! Just for fun */
+asmlinkage long sys_jwnix(void);
+
+#################################
+### NEW FILE : kernel/jwnix.c ###
+#################################
+
+#include <linux/syscalls.h>
+#include <linux/kernel.h>
+#include <linux/sched.h>
+
+#define msg(fmt, args...) \
+	printk("%s: " fmt "\n", __func__, ## args);
+
+SYSCALL_DEFINE0(jwnix)
+{
+	printk("%s: In syscall sys_jwnix! Congratulations!\n", __func__);
+	return 69;
+}
+
+##################################
+### NEW FILE : kernel/Makefile ###
+##################################
+
+Add: jwnix.o to the obj-y list.
+Later, get fancy and add it to Kconfig!
+
+####################################################
+### Instead of changing the files below, do this ###
+####################################################
+Add to: arch/x86/syscalls/syscall_64.tbl
+322	common	jwnix			sys_jwnix
+
+Add to: arch/x86/syscalls/syscall_32.tbl
+358	i386	jwnix			sys_jwnix
+
+#######################################################
+### The above automatically generates these changes ###
+#######################################################
+
+Added to arch/x86/include/generated/asm/syscalls_64.h
+__SYSCALL_COMMON(322, sys_jwnix, sys_jwnix)
+
+Added to arch/x86/include/generated/asm/syscalls_32.h
+__SYSCALL_I386(358, sys_jwnix, sys_jwnix)
+
+Added to arch/x86/include/generated/uapi/asm/unistd_64.h
+#define __NR_jwnix  322
+
+Added to arch/x86/include/generated/uapi/asm/unistd_32.h
+#define __NR_jwnix  358
+
+
