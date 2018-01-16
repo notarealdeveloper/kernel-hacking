@@ -17,9 +17,9 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
 
-/* Scancode to keycode tables. These are just the default setting, and are loadable via a userland utility. */
+/* Scancode to keycode tables */
 #define ATKBD_KEYMAP_SIZE	256
-static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
+static const unsigned short atkbd_keycode[ATKBD_KEYMAP_SIZE] = {
 	  0, 67, 65, 63, 61, 59, 60, 88,  0, 68, 66, 64, 62, 15, 41,117,
 	  0, 56, 42, 93, 29, 16,  2,  0,  0,  0, 44, 31, 30, 17,  3,  0,
 	  0, 46, 45, 32, 18,  5,  4, 95,  0, 57, 47, 33, 20, 19,  6,183,
@@ -37,8 +37,6 @@ static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
 	226,  0,  0,  0,  0,  0,  0,  0,  0,255, 96,  0,  0,  0,143,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,107,  0,105,102,  0,  0,112,
 	110,111,108,112,106,103,  0,119,  0,118,109,  0, 99,104,119,  0,
-
-//	  0,  0,  0, 65, 99,
 };
 
 static const unsigned short atkbd_unxlate_table[128] = {
@@ -65,7 +63,7 @@ struct atkbd {
 	unsigned char emul;
 };
 
-/* Here we process the data received from the keyboard into events.
+/* Process the data received from the keyboard into events.
  * data" is the scancode (e.g., 0x01 for ESC, 0x02 for 1, etc.)
  * When that key is released, it's the same value | 0x80. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
@@ -76,15 +74,19 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 	printk("[*] In %s: data == 0x%02x\n", __func__, data);
 
 	if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK) && ps2_handle_ack(&atkbd->ps2dev, data)) {
-		printk(KERN_INFO "[*] In unlikely ps2_command. Fucking off.\n");
-		goto done;
+		printk(KERN_DEBUG "[*] In unlikely ps2_command. Fucking off.\n");
+		return IRQ_HANDLED;
 	}
 
-	/* Checks if we should mangle the scancode to extract 'release' bit in translated mode. */
+	/* If we've got a fucked-up key (brightness, volume, etc.) then don't 
+	 * actually do anything yet! Just set atkbd->emul to 1, and do the 
+ 	 * actual processing when the key is *released*! When we look-up 
+	 * the keycode, check whether atkbd->emul is set. If it is, OR the code
+ 	 * keycode with 0x80 == 128 before we look it up */
 	if ((code == ATKBD_RET_EMUL0) || (code == ATKBD_RET_EMUL1)) {
 		atkbd->emul = 1;
-		printk("atkbd->emul set to 1\n");
-		goto done;
+		printk(KERN_DEBUG "atkbd->emul set to 1\n");
+		return IRQ_HANDLED;
 	}
 
         /* This used to be atkbd_compat_scancode(). It was a hack almost 
@@ -93,8 +95,7 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 	input_event(atkbd->dev, EV_KEY, atkbd->keycode[(atkbd->emul) ? (code|0x80) : code], data < 0x80);
 	input_sync(atkbd->dev);
 	atkbd->emul = 0;
-
-done:	return IRQ_HANDLED;
+	return IRQ_HANDLED;
 }
 
 
@@ -119,21 +120,21 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 
         /* BEGIN ATKBD PROBE */
 	if (ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_ENABLE)) {
-		printk(KERN_INFO "[*] ps2_command returned nonzero. Bailing out!\n");
+		printk(KERN_INFO "[+] ps2_command returned nonzero. Bailing out!\n");
 		err = -ENODEV;
                 goto fail;
 	}
 
         /* BEGIN SET KEYCODE TABLE */
-	printk(KERN_DEBUG "[*] In atkbd_set_keycode_table\n");
+	printk(KERN_DEBUG "[+] In atkbd_set_keycode_table\n");
 	for (i = 0; i < 128; i++) {
-		scancode = atkbd_unxlate_table[i];
-		atkbd->keycode[i] 	= atkbd_set2_keycode[scancode];
-		atkbd->keycode[i|0x80]  = atkbd_set2_keycode[scancode|0x80];
+		scancode 		= atkbd_unxlate_table[i];
+		atkbd->keycode[i] 	= atkbd_keycode[scancode];
+		atkbd->keycode[i|0x80]  = atkbd_keycode[scancode|0x80];
 	}
 
         /* BEGIN SET DEVICE ATTRS */
-	printk(KERN_DEBUG "[*] In atkbd_set_device_attrs\n");
+	printk(KERN_DEBUG "[+] In atkbd_set_device_attrs\n");
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
 	atkbd->dev->phys = atkbd->phys;
 	atkbd->dev->name = "The honorable keyboard of Jason Wilkes";
@@ -141,8 +142,8 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	atkbd->dev->evbit[0]  = BIT_MASK(EV_KEY);
 
         /* Print some of the info we just set */
-        printk(KERN_DEBUG "[*] %s : atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
-        printk(KERN_DEBUG "[*] %s : atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
+        printk(KERN_DEBUG "[+] %s : atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
+        printk(KERN_DEBUG "[+] %s : atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
 
 	for (i = 0; i < ATKBD_KEYMAP_SIZE; i++)
 		__set_bit(atkbd->keycode[i], atkbd->dev->keybit);
