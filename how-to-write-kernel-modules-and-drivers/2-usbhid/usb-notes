@@ -1,0 +1,37 @@
+#!/bin/bash
+
+###############################################
+### AFTER I FIGURED OUT HOW TO DO IT MYSELF ###
+###############################################
+
+# We don't need to initialize any char devices for this driver, 
+# since (I assume) udev loads the default usbhid it on boot.
+
+# To rebuild it
+make cleanall && make
+
+# To reinsert it, if the build goes well
+sudo dmesg -C && sudo rmmod usbhid && sudo insmod ./usbhid.ko && dmesg
+
+
+###################
+### BEFORE THAT ###
+###################
+
+# Reverse-engineering my mouse
+# modprobe usbmon
+# cat /sys/kernel/debug/usb/usbmon/1u
+
+# Directions
+# L: 0000 ffff 0000 0000
+# R: 0000 0100 0000 0000
+# U: 0000 0000 ffff 0000
+# D: 0000 0000 0100 0000
+
+# Mouse buttons (additive)
+# ML: 0100 0000 0000 0000
+# MR: 0200 0000 0000 0000
+# MM: 0400 0000 0000 0000
+
+# The device's memory appears to be mapped to a different location
+# each boot, but the current one from usbmon is 0xffff8802102a6780.
