@@ -1,25 +1,41 @@
-/* My AT and PS/2 keyboard driver (Was 45K -> now 7K)
- * I've cut this driver down to about 15% of its original size.
+/* My AT and PS/2 keyboard driver */
+
+/* I've cut this driver down to about 1/3 its original size.
  * I probably fucked a few things up, but if so, I can't tell.
- * It still seems to work fine on my laptop. ~ Me
+ * It still seems to work fine. ~ Me
  */
 
+/*
+ * This driver can handle standard AT keyboards and PS/2 keyboards in
+ * Translated and Raw Set 2 and Set 3, as well as AT keyboards on dumb
+ * input-only controllers and AT keyboards connected over a one way RS232
+ * converter.
+ */
+
+// #include <linux/delay.h>
+// #include <linux/init.h>
+// #include <linux/workqueue.h>
+// #include <linux/dmi.h>
+// #include <linux/interrupt.h>
+// #include <linux/kernel.h>        /* was only using this for printk */
+// #include <linux/mutex.h>
 #include <linux/module.h>
-#include <linux/slab.h>             /* kzalloc, kfree */
+#include <linux/slab.h>             /* kzalloc, kfree. Could do without these. */
 #include <linux/input.h>            /* everything */
 #include <linux/serio.h>
 #include <linux/libps2.h>
 #include <linux/printk.h>
 
-#define DRIVER_DESC	"A stupid keyboard driver"
+#define DRIVER_DESC	"AT and PS/2 keyboard driver"
+
 MODULE_AUTHOR("Jason Mothafuckin Wilkes");
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
 
-/* Scancode to keycode tables */
-#define ATKBD_KEYMAP_SIZE	256
-static const unsigned short atkbd_keycode[ATKBD_KEYMAP_SIZE] = {
+/* Scancode to keycode tables. These are just the default setting, and are loadable via a userland utility. */
+#define ATKBD_KEYMAP_SIZE	512
+static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
 	  0, 67, 65, 63, 61, 59, 60, 88,  0, 68, 66, 64, 62, 15, 41,117,
 	  0, 56, 42, 93, 29, 16,  2,  0,  0,  0, 44, 31, 30, 17,  3,  0,
 	  0, 46, 45, 32, 18,  5,  4, 95,  0, 57, 47, 33, 20, 19,  6,183,
@@ -37,6 +53,8 @@ static const unsigned short atkbd_keycode[ATKBD_KEYMAP_SIZE] = {
 	226,  0,  0,  0,  0,  0,  0,  0,  0,255, 96,  0,  0,  0,143,  0,
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,107,  0,105,102,  0,  0,112,
 	110,111,108,112,106,103,  0,119,  0,118,109,  0, 99,104,119,  0,
+
+	  0,  0,  0, 65, 99,
 };
 
 static const unsigned short atkbd_unxlate_table[128] = {
@@ -51,144 +69,433 @@ static const unsigned short atkbd_unxlate_table[128] = {
 };
 
 #define ATKBD_CMD_ENABLE	0x00f4
-#define ATKBD_WEIRD_KEY		0xe0
-#define not_yet_initialized(k)	(k->ps2dev.flags & PS2_FLAG_ACK)
-#define log()			printk(KERN_DEBUG "[*] %s: entered\n", __func__)
+#define ATKBD_CMD_GETID		0x02f2
+#define ATKBD_CMD_SETLEDS	0x20eb
+#define ATKBD_CMD_SETREP	0x10f3 
+#define ATKBD_CMD_RESET_DEF	0x00f6	/* Reset to defaults */
 
+
+#define ATKBD_RET_ACK		0xfa
+#define ATKBD_RET_NAK		0xfe
+#define ATKBD_RET_BAT		0xaa
+#define ATKBD_RET_EMUL0		0xe0
+#define ATKBD_RET_EMUL1		0xe1
+#define ATKBD_RET_RELEASE	0xf0
+#define ATKBD_RET_HANJA		0xf1
+#define ATKBD_RET_HANGEUL	0xf2
+#define ATKBD_RET_ERR		0xff
+
+#define ATKBD_KEY_NULL		255
+#define ATKBD_SPECIAL		0xfff8
+
+
+/* The atkbd control structure */
 struct atkbd {
+
 	struct ps2dev ps2dev;
-	struct input_dev *dev;	/* Defined in include/linux/input.h */
+	struct input_dev *dev;
+
+	/* Written only during init */
+	char name[64];
 	char phys[32];
+
+	unsigned short id;
 	unsigned short keycode[ATKBD_KEYMAP_SIZE];
-	unsigned char  weirdkey;
+	DECLARE_BITMAP(force_release_mask, ATKBD_KEYMAP_SIZE);
+	unsigned char set;
+	bool translated;
+	// bool extra;		/* Hah! We can change the struct :D */
+	// bool write;
+	// bool softrepeat;
+	bool softraw;
+	bool scroll;
+	bool enabled;
+
+	/* Accessed only from interrupt */
+	unsigned char emul;
+	bool resend;
+	bool release;
+	unsigned long xl_bit;
+	unsigned int last;
+	unsigned long time;
+	unsigned long err_count;
+
+	struct delayed_work event_work;
+	unsigned long event_jiffies;
+	unsigned long event_mask;
+
+	/* Serializes reconnect(), attr->set() and event work */
+	struct mutex mutex;
 };
 
-/* Process the data received from the keyboard into events.
- * data" is the scancode (e.g., 0x01 for ESC, 0x02 for 1, etc.)
- * When that key is released, it's the same value | 0x80. */
+static const unsigned int xl_table[] = {
+	ATKBD_RET_BAT, ATKBD_RET_ERR, ATKBD_RET_ACK,
+	ATKBD_RET_NAK, ATKBD_RET_HANJA, ATKBD_RET_HANGEUL,
+};
+
+/* Checks if we should mangle the scancode to extract 'release' bit in translated mode. */
+#define atkbd_need_xlate(code)  ((code == ATKBD_RET_EMUL0 || code == ATKBD_RET_EMUL1) ? false : true)
+
+/* atkbd_interrupt(). Here takes place processing of data received from the keyboard into events. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
-	unsigned short code = data & 0b01111111;
+	struct input_dev *dev = atkbd->dev;
+	unsigned int code = data;
+	int scroll = 0, hscroll = 0, click = -1;
+	int value;
+	unsigned short keycode;
+        int i;
 
-	printk(KERN_DEBUG "[*] %s: data == 0x%02x\n", __func__, data);
+	/* NOTE TO SELF:
+	 * =============
+	 * It looks like the "data" is the keycode. That is, data is 
+	 * 0x01 for ESC, 0x02 for 1, etc., and the same value + 0x80 when that key is released.
+	 */
+	printk("[*] In atkbd_interrupt: data == 0x%02x, flags == %d\n", data, flags);
 
-	if (not_yet_initialized(atkbd)) {
-		ps2_handle_ack(&atkbd->ps2dev, data);
-		printk(KERN_DEBUG "[*] %s: atkbd not initialized yet. fucking off.\n", __func__);
-		return IRQ_HANDLED;
+	if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK))
+		if  (ps2_handle_ack(&atkbd->ps2dev, data))
+			goto out;
+
+	if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_CMD))
+		if  (ps2_handle_response(&atkbd->ps2dev, data))
+			goto out;
+
+	// if (!atkbd->enabled) {
+	// 	goto out;
+        // }
+
+        /* Note: This is the signature of input_event. It may be being called incorrectly... */
+        /* void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value); */
+	input_event(dev, EV_MSC, MSC_RAW, code);
+
+	if (atkbd->translated) {
+
+		if (atkbd->emul || atkbd_need_xlate(code)) {
+			atkbd->release = code >> 7;
+			code &= 0x7f;
+		}
+
+                /* Variable i is local to this block */
+		if (!atkbd->emul) {
+                        /* Calculates new value of xl_bit so the driver can distinguish between make/break 
+                         * pair of scancodes for select keys and PS/2 protocol responses. */
+	                for (i = 0; i < ARRAY_SIZE(xl_table); i++) {
+		                if (!((code ^ xl_table[i]) & 0x7f)) {
+			                if (code & 0x80)
+				                __clear_bit(i, &atkbd->xl_bit);
+			                else
+				                __set_bit(i, &atkbd->xl_bit);
+			                break;
+		                }
+	                }
+                }
 	}
 
-	/* If we've got a weird key (brightness, volume, etc.) then don't
-	 * actually do anything yet! Just set atkbd->weirdkey to 1, and do the
- 	 * actual processing when the key is *released*! When we look-up
-	 * the keycode, check whether atkbd->weirdkey is set. If it is,
- 	 * OR the keycode with 0x80 == 128 before we look it up.
-	 * Note: My pause/break key can generate 0xe1, but all other
-	 * weird keys generate 0xe0. Who needs pause/break anyway? */
-	if (data == ATKBD_WEIRD_KEY) {
-		atkbd->weirdkey = 1;
-		printk(KERN_DEBUG "[*] %s: atkbd->weirdkey set\n", __func__);
-		return IRQ_HANDLED;
+	switch (code) {
+	case ATKBD_RET_BAT:
+		atkbd->enabled = false;
+		serio_reconnect(atkbd->ps2dev.serio);
+		goto out;
+	case ATKBD_RET_EMUL0:
+		atkbd->emul = 1;
+		goto out;
 	}
 
-        /* atkbd_compat_scancode() used to be here. It was a hack almost 
-	 * exactly like what Intel did with the Global Descriptor Table */
-	input_event(atkbd->dev, EV_KEY, atkbd->keycode[(atkbd->weirdkey) ? (code|0x80) : code], data < 0x80);
-	input_sync(atkbd->dev);
-	atkbd->weirdkey = 0;
+
+        /* This block used to be atkbd_compat_scancode() */
+        /* Encode the scancode, 0xe0 prefix, and high bit into a single integer, keeping kernel 2.4 compatibility for set 2 */
+	code = (code & 0x7f) | ((code & 0x80) << 1);
+	if (atkbd->emul == 1)
+		code |= 0x80;
+
+
+	if (atkbd->emul && --atkbd->emul)
+		goto out;
+
+	keycode = atkbd->keycode[code];
+
+	if (keycode != ATKBD_KEY_NULL)
+		input_event(dev, EV_MSC, MSC_SCAN, code);
+
+	if (atkbd->release) {
+		value = 0;
+		atkbd->last = 0;
+	} else {
+		value = 1;
+		atkbd->last = code;
+		atkbd->time = jiffies + msecs_to_jiffies(dev->rep[REP_DELAY]) / 2;
+	}
+
+	input_event(dev, EV_KEY, keycode, value);
+	input_sync(dev);
+
+	if (value && test_bit(code, atkbd->force_release_mask)) {
+		input_report_key(dev, keycode, 0);
+		input_sync(dev);
+	}
+
+	if (atkbd->scroll) {
+		if (click != -1)
+			input_report_key(dev, BTN_MIDDLE, click);
+		input_report_rel(dev, REL_WHEEL, atkbd->release ? -scroll : scroll);
+		input_report_rel(dev, REL_HWHEEL, hscroll);
+		input_sync(dev);
+	}
+
+	atkbd->release = false;
+out:
 	return IRQ_HANDLED;
 }
 
 
-/* atkbd_connect() is called when the serio module finds an interface
+/*
+ * atkbd_connect() is called when the serio module finds an interface
  * that isn't handled yet by an appropriate device driver. We check if
  * there is an AT keyboard out there and if yes, we register ourselves
- * to the input module. */
+ * to the input module.
+ */
+
 static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 {
 	struct atkbd *atkbd;
-	unsigned int scancode;
+	struct input_dev *dev;
 	int err = -ENOMEM;
+
+	struct ps2dev *ps2dev;
+	unsigned char param[2];
+
+	unsigned int scancode;
 	int i;
 
-	log();
+	struct input_dev *input_dev;
+        int j;
+
+	printk(KERN_DEBUG "[*] In atkbd_connect\n");
+
 	atkbd = kzalloc(sizeof(struct atkbd), GFP_KERNEL);
-	atkbd->dev = input_allocate_device();
+	dev = input_allocate_device();
 
+	atkbd->dev = dev;
 	ps2_init(&atkbd->ps2dev, serio);
+	mutex_init(&atkbd->mutex);
 
-	serio->dev.driver_data = atkbd; // serio_set_drvdata(serio, atkbd);
+	switch (serio->id.type) {
+
+	case SERIO_8042_XL:
+		atkbd->translated = true;
+		/* Fall through */
+	case SERIO_8042:
+		if (serio->write)
+			// atkbd->write = true;
+		break;
+	}
+
+	atkbd->softraw = true;
+	// atkbd->softrepeat = 0;
+	atkbd->scroll = 0;
+
+	serio_set_drvdata(serio, atkbd);
 	serio_open(serio, drv);
 
+
+        /*********************/
         /* BEGIN ATKBD PROBE */
-	printk(KERN_DEBUG "[*] %s: this will cause a keyboard interrupt\n", __func__);
-	if (ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_ENABLE)) {
-		printk(KERN_INFO "[*] %s: ps2_command returned nonzero. Bailing out!\n", __func__);
-		err = -ENODEV;
-                goto fail;
-	}
-	printk(KERN_DEBUG "[*] %s: returning from keyboard interrupt\n", __func__);
+        /*********************/
+        /* This was atkbd_probe(atkbd); */
+        /* The variables struct ps2dev *ps2dev and param are local to this block */
+        /* FROM THE ORIGINAL FUNCTION:
+         * Then we check the keyboard ID. We should get 0xab83 under normal conditions.
+         * Some keyboards report different values, but the first byte is always 0xab or
+         * 0xac. Some old AT keyboards don't report anything. If a mouse is connected, this
+         * should make sure we don't try to set the LEDs on it. */
+        ps2dev = &atkbd->ps2dev;
 
+	param[0] = param[1] = 0xa5;	/* initialize with invalid values */
+	if (ps2_command(ps2dev, param, ATKBD_CMD_GETID)) {
+		param[0] = 0;
+		if (ps2_command(ps2dev, param, ATKBD_CMD_SETLEDS)) {
+			err = -ENODEV;
+                        goto fail;
+                }
+		atkbd->id = 0xabba;
+	} else {
+	        atkbd->id = (param[0] << 8) | param[1];
+	        //atkbd_deactivate(atkbd);
+        }
+        /*******************/
+        /* END ATKBD PROBE */
+        /*******************/
+
+	atkbd->set = 2;
+
+        /***************************/
         /* BEGIN SET KEYCODE TABLE */
-	printk(KERN_DEBUG "[*] %s: in former atkbd_set_keycode_table\n", __func__);
+        /***************************/
+        /* This was atkbd_set_keycode_table(atkbd); */
+        /* The variables scancode and i are local to this block */
+	printk(KERN_DEBUG "[*] In atkbd_set_keycode_table\n");
+
+	memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
+	bitmap_zero(atkbd->force_release_mask, ATKBD_KEYMAP_SIZE);
+
+	// Since (atkbd->translated)
 	for (i = 0; i < 128; i++) {
-		scancode 		= atkbd_unxlate_table[i];
-		atkbd->keycode[i] 	= atkbd_keycode[scancode];
-		atkbd->keycode[i|0x80]  = atkbd_keycode[scancode|0x80];
+		scancode = atkbd_unxlate_table[i];
+		atkbd->keycode[i] = atkbd_set2_keycode[scancode];
+		atkbd->keycode[i | 0x80] = atkbd_set2_keycode[scancode | 0x80];
+	}
+        /*************************/
+        /* END SET KEYCODE TABLE */
+        /*************************/
+
+        /**************************/
+        /* BEGIN SET DEVICE ATTRS */
+        /**************************/
+        /* This was atkbd_set_device_attrs(atkbd); */
+        /* The variables input_dev and j are local to this block */
+        input_dev = atkbd->dev;
+	printk(KERN_DEBUG "[*] In atkbd_set_device_attrs\n");
+
+	snprintf(atkbd->name, sizeof(atkbd->name), "AT %s Set %d keyboard", atkbd->translated ? "Translated" : "Raw", atkbd->set);
+	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
+
+	input_dev->name = atkbd->name;
+	input_dev->phys = atkbd->phys;
+	input_dev->id.bustype = BUS_I8042;
+	// input_dev->id.vendor = 0x0001;
+	// input_dev->id.product = atkbd->translated ? 1 : atkbd->set;
+	// input_dev->id.version = atkbd->id;
+	// input_dev->event = atkbd_event;
+	// input_dev->dev.parent = &atkbd->ps2dev.serio->dev;
+	input_set_drvdata(input_dev, atkbd);
+	input_dev->evbit[0]  = BIT_MASK(EV_KEY);
+	// input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP) | BIT_MASK(EV_MSC) | BIT_MASK(EV_LED);
+	// input_dev->ledbit[0] = BIT_MASK(LED_NUML) | BIT_MASK(LED_CAPSL) | BIT_MASK(LED_SCROLLL);
+	// input_dev->mscbit[0] = atkbd->softraw ? BIT_MASK(MSC_SCAN) : BIT_MASK(MSC_RAW) | BIT_MASK(MSC_SCAN);
+	input_dev->rep[REP_DELAY] = 250;
+	input_dev->rep[REP_PERIOD] = 33;
+	// input_dev->keycode = atkbd->keycode;
+	input_dev->keycodesize = sizeof(unsigned short);
+	input_dev->keycodemax = ARRAY_SIZE(atkbd_set2_keycode);
+
+        /* This sets bits in input_dev->keybit until it's 0xfffffffffffffffe. 
+         * Let's see if we can get away with just setting it to that. */
+
+
+        /* From include/linux/input.h
+         * ==========================
+         * struct input_dev - represents an input device
+         * @name: name of the device
+         * @phys: physical path to the device in the system hierarchy
+         * @evbit: bitmap of types of events supported by the device (EV_KEY, EV_REL, etc.)
+         * @keybit: bitmap of keys/buttons this device has
+         */
+
+	/* This: printk'ing sizeof(input_dev->keybit) shows that
+         * input_dev->keybit is an array 96 bytes (768 bits) long. */
+	for (j = 0; j < ATKBD_KEYMAP_SIZE; j++) {
+		if (atkbd->keycode[j] != KEY_RESERVED &&
+		    atkbd->keycode[j] != ATKBD_KEY_NULL &&
+		    atkbd->keycode[j] <  ATKBD_SPECIAL) {
+			__set_bit(atkbd->keycode[j], input_dev->keybit);
+		}
 	}
 
-        /* BEGIN SET DEVICE ATTRS */
-	printk(KERN_DEBUG "[*] %s: in former atkbd_set_device_attrs\n", __func__);
-	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
-	atkbd->dev->phys = atkbd->phys;
-	atkbd->dev->name = "The honorable keyboard of Jason Wilkes";
-	atkbd->dev->dev.driver_data = atkbd; // same as input_set_drvdata(atkbd->dev, atkbd);
-	atkbd->dev->evbit[0]  = BIT_MASK(EV_KEY);
+#define set_bit_example() ({					\
+        /* So *p should be 0b00011000 == 24, which it is */	\
+        unsigned long n = 0, *p = &n;				\
+        set_bit(4, p);						\
+        __set_bit(3, p);					\
+        printk(KERN_INFO"[*] set_bit example: *p = %lu\n", *p);	\
+})
+
+        set_bit_example();
 
         /* Print some of the info we just set */
-        printk(KERN_DEBUG "[*] %s: atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
-        printk(KERN_DEBUG "[*] %s: atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
+        printk("[*] %s : dev->name == %s\n", __func__, dev->name);
+        printk("[*] %s : dev->phys == %s\n", __func__, dev->phys);
 
-	for (i = 0; i < ATKBD_KEYMAP_SIZE; i++)
-		__set_bit(atkbd->keycode[i], atkbd->dev->keybit);
+        /************************/
+        /* END SET DEVICE ATTRS */
+        /************************/
+
+	// sysfs_create_group(&serio->dev.kobj, &atkbd_attribute_group);
+
+	atkbd->enabled = true;
+	if (serio->write) {
+	        if (ps2_command(ps2dev, NULL, ATKBD_CMD_ENABLE))
+		        dev_err(&ps2dev->serio->dev, "Failed to enable keyboard on %s\n", ps2dev->serio->phys);
+        }
 
 	input_register_device(atkbd->dev);
+
 	return 0;
 
-fail:
-	serio_close(serio);
-	serio->dev.driver_data = NULL;
-	input_free_device(atkbd->dev);
+fail:	serio_close(serio);
+        serio_set_drvdata(serio, NULL);
+        input_free_device(dev);
 	kfree(atkbd);
 	return err;
 }
 
+/* atkbd_disconnect() closes and frees. */
 static void atkbd_disconnect(struct serio *serio)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
-	log();
-	serio_close(serio);
-	serio->dev.driver_data = NULL;
+
+	printk("[*] In atkbd_disconnect\n");
+	// sysfs_remove_group(&serio->dev.kobj, &atkbd_attribute_group);
+	atkbd->enabled = false;
 	input_unregister_device(atkbd->dev);
+
+	/* Make sure we don't have a command in flight. */
+	cancel_delayed_work_sync(&atkbd->event_work);
+	serio_close(serio);
+	serio_set_drvdata(serio, NULL);
 	kfree(atkbd);
 }
 
 static struct serio_device_id atkbd_serio_ids[] = {
-	{.type	= SERIO_8042_XL,},
-	{0}
+	{
+		.type	= SERIO_8042,
+		.proto	= SERIO_ANY,
+		.id	= SERIO_ANY,
+		.extra	= SERIO_ANY,
+	},
+	{
+		.type	= SERIO_8042_XL,
+		.proto	= SERIO_ANY,
+		.id	= SERIO_ANY,
+		.extra	= SERIO_ANY,
+	},
+	{ 0 }
 };
 
 static struct serio_driver atkbd_drv = {
-	.driver		= {.name = "atkbd"},
+	.driver		= {
+		.name	= "atkbd",
+	},
+	.description	= DRIVER_DESC,
 	.id_table	= atkbd_serio_ids,
 	.interrupt	= atkbd_interrupt,
 	.connect	= atkbd_connect,
 	.disconnect	= atkbd_disconnect,
 };
 
-static int  __init atkbd_init(void) {log(); return serio_register_driver(&atkbd_drv);}
-static void __exit atkbd_exit(void) {log(); serio_unregister_driver(&atkbd_drv);}
+static int __init atkbd_init(void)
+{
+	printk("[*] In atkbd_init\n");
+	return serio_register_driver(&atkbd_drv);
+}
+
+static void __exit atkbd_exit(void)
+{
+	printk("[*] In atkbd_exit\n");
+	serio_unregister_driver(&atkbd_drv);
+}
+
 module_init(atkbd_init);
 module_exit(atkbd_exit);
 
