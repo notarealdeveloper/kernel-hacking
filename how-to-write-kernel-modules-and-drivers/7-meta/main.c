@@ -3,13 +3,12 @@
 #include <linux/kernel.h>
 #include "kapi.h"
 #include "state.h"
+#include "toplel.h"
 
 /* More fun things to do:
- * (1) cat System.map, and grep for interesting words, (e.g., "current")
+ * (1) cat System.map, and grep for interesting terms
  * (2) visit http://en.wikipedia.org/wiki/Magic_SysRq_key
  */
-
-MODULE_LICENSE("GPL");
 
 static void kmod_exit(void);
 static void kmod_exit(void);
@@ -17,7 +16,7 @@ static void kmod_get_retarded(void);
 
 static int kmod_init(void) 
 {
-	msg("Entering module");
+	msg("[*] Initializing module");
 	kobj_init();
 	modules_lsmod();
 	context_print();
@@ -26,6 +25,7 @@ static int kmod_init(void)
 	procs_psaux();
 	setup_regs_for_test();
 	state_dump();
+	msg("[*] Done initializing module");
 	return 0;
 }
 
@@ -36,19 +36,21 @@ static void kmod_get_retarded(void)
 		msg("Haha gotcha bitch!");
 		kmod_exit();
 	}
-
-	/* install our exit hook */
-	/* note: these functions end up in the text segment,
-	 * not on the stack, so this should be perfectly safe :D */
+	/* install our module exit hook */
 	THIS_MODULE->exit = kmod_exit_hook;
 }
 
 static void kmod_exit(void)
 {
-	kobj_kill();
+	msg("[*] Removing module");
 	procs_print_task(NULL);
-	msg("Leaving module");
+	kobj_kill();
+	toplel_remove();
+	msg("[*] Done removing module");
 }
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Jason Wilkes");
 
 module_init(kmod_init);
 module_exit(kmod_exit);

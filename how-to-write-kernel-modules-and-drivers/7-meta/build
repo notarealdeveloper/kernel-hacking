@@ -1,11 +1,28 @@
 #!/bin/bash
 
 module="$(cat Makefile | grep obj-m | grep -Po '[^\s]*(?=\.o)')"  # currently, this is "waffles"
-sysfsd="/sys/kernel/kobject-example"
+sysfsd="/sys/kernel/${module}"
 
 test_sysfs () {
-	echo 69 | sudo tee "$sysfsd"/foo &>/dev/null
-	echo -e "foo\n---" && for i in {1..5}; do cat "$sysfsd"/foo; done
+	echo '#######################################'
+	echo '### Testing sysfs hook installation ###'
+	echo '#######################################'
+	# Install the hook and test it
+	echo '[*] Before installing hook:'
+	md5sum toplel/test.jpg
+	md5sum toplel/toplel.jpg
+
+	echo 1337 | sudo tee "$sysfsd"/foo &>/dev/null
+	echo '[*] After installing hook:'
+	md5sum toplel/test.jpg
+	md5sum toplel/toplel.jpg
+	f1=$(md5sum toplel/test.jpg   | cut -d' ' -f1)
+	f2=$(md5sum toplel/toplel.jpg | cut -d' ' -f1)
+	[[ "$f1" == "$f2" ]] && echo '[+] sysfs hook test passed'
+
+	# Uninstall the hook
+	echo 1338 | sudo tee "$sysfsd"/foo &>/dev/null
+	echo '#######################################'
 }
 
 sudo true

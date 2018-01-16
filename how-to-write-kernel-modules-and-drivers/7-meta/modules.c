@@ -1,6 +1,8 @@
 #include <linux/module.h>	/* struct module, container_of */
 #include <linux/list.h>		/* list_for_each_entry */
 
+#define msg(fmt, args...) \
+	printk(KERN_DEBUG "%s: " fmt "\n", __func__, ## args)
 
 extern void modules_lsmod(void)
 {
@@ -10,7 +12,7 @@ extern void modules_lsmod(void)
 	struct list_head *modules = mod->list.prev;
 
 	list_for_each_entry(mod, modules, list) {
-		printk(KERN_DEBUG "%s: %-24s at %p\n", __func__, mod->name, mod);
+		msg("%-24s at %p", mod->name, mod);
 	}
 }
 
@@ -22,7 +24,7 @@ static void modules_lsmod_v1(void)
 	struct list_head *modules = &mod->list; // &THIS_MODULE->list also works
 
 	list_for_each_entry(mod, modules, list) {
-		printk(KERN_DEBUG "%s: module %-32s at %p\n", __func__, mod->name, mod);
+		msg("%-24s at %p", mod->name, mod);
 	}
 }
 
@@ -34,7 +36,7 @@ static void modules_lsmod_v2(void)
 
 	mod = container_of(mod->list.next, struct module, list);
 	for (modules = &mod->list; mod != THIS_MODULE; mod = container_of(mod->list.next, struct module, list)) {
-		printk(KERN_DEBUG "%s: module %-32s at %p\n", __func__, mod->name, mod);
+		msg("%-24s at %p", mod->name, mod);
 	}
 }
 
@@ -43,8 +45,7 @@ static void modules_lsmod_v3(void)
 {
 	struct module *mod = THIS_MODULE;
 	do {
-		printk(KERN_DEBUG "%s: module %-32s at %p\n", 
-			__func__, mod->name, mod);
+		msg("%-24s at %p", mod->name, mod);
 		mod = container_of(mod->list.next, struct module, list);
 	} while (mod != THIS_MODULE);
 }
@@ -53,13 +54,12 @@ static void modules_lsmod_v3(void)
 static void modules_lsmod_v4(void)
 {
 	struct module *mod = THIS_MODULE;	// mod = find_module("waffles") also works
-	struct list_head *modules = &(mod->list); // &THIS_MODULE->list also works
+	struct list_head *modules = &mod->list;	// &THIS_MODULE->list also works
 
 	list_for_each_entry(mod, modules, list) {
-		 if (mod->name[0] == 1)
+		if (mod->name[0] == 1)
 			continue;
-		printk(KERN_DEBUG "%s: %-24s at %p\n", __func__, mod->name, mod);
-		/* also useful: mod->init and mod->exit */
+		msg("%-24s at %p", mod->name, mod);
 	}
 }
 
