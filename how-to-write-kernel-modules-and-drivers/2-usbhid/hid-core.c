@@ -7,12 +7,12 @@
 
 #include <linux/module.h>
 #include <linux/usb.h>
+#include <linux/slab.h>
 
 /***************/
 /* Begin hid.h */
 /***************/
 
-#include <linux/slab.h>
 
 /* This is the collection stack. We climb up the stack to determine application and function of each field. */
 struct hid_collection {
@@ -21,13 +21,9 @@ struct hid_collection {
 	unsigned level;
 };
 
-struct hid_usage {
-	unsigned  hid;			/* hid usage code */
-	__u8      type;			/* input driver type */
-};
+struct hid_usage {};
 
 struct hid_field {
-	struct hid_usage *usage;	/* usage table for this function */
 	__s32    *value;		/* last known value(s) */
 	struct hid_report *report;	/* associated report */
 	unsigned index;			/* index into report->field[] */
@@ -65,20 +61,23 @@ enum hid_type {
 	HID_TYPE_USBNONE
 };
 
+/* Something in usbcore is using this. Can't make normal assumptions
+ * Update: The weird behavior was because the order of members in this structure matters! 
+ * Something in usbcore or elsewhere must be *parsing* this shit! */
 struct hid_device {							/* device report descriptor */
-	__u8 *dev_rdesc;
-	unsigned dev_rsize;
-	__u8 *rdesc;
+	u8 	*fuckit_0;
+	unsigned fuckit_1;
+	u8 	*rdesc;
 	unsigned rsize;
-	struct hid_collection *collection;				/* List of HID collections */
-	unsigned collection_size;					/* Number of allocated hid_collections */
-	unsigned maxcollection;						/* Number of parsed collections */
-	unsigned maxapplication;					/* Number of applications */
-	__u16 bus;							/* BUS ID */
-	__u16 group;							/* Report group */
-	__u32 vendor;							/* Vendor ID */
-	__u32 product;							/* Product ID */
-	__u32 version;							/* HID version */
+	void 	*fuckit_2;
+	unsigned fuckit_3;
+	unsigned fuckit_4;
+	unsigned fuckit_5;
+	u16 bus;							/* BUS ID */
+	u16 group;							/* Report group */
+	u32 vendor;							/* Vendor ID */
+	u32 product;							/* Product ID */
+	u32 version;							/* HID version */
 	enum hid_type type;						/* device type (mouse, kbd, ...) */
 	unsigned country;						/* HID country */
 	struct hid_report_enum report_enum[3];
@@ -106,69 +105,27 @@ struct hid_device {							/* device report descriptor */
 	void *driver_data;
 
 	/* temporary hid_ff handling (until moved to the drivers) */
-	int (*ff_init)(struct hid_device *);
-
-	/* hiddev event handler */
-	int (*hiddev_connect)(struct hid_device *, unsigned int);
-	void (*hiddev_disconnect)(struct hid_device *);
-	void (*hiddev_hid_event) (struct hid_device *, struct hid_field *field, struct hid_usage *, __s32);
-	void (*hiddev_report_event) (struct hid_device *, struct hid_report *);
-
-	/* debugging support via debugfs */
-	unsigned short debug;
-	struct dentry *debug_dir;
-	struct dentry *debug_rdesc;
-	struct dentry *debug_events;
-	struct list_head debug_list;
-	spinlock_t  debug_list_lock;
-	wait_queue_head_t debug_wait;
+	// int (*ff_init)(struct hid_device *);
 };
 
-struct hid_class_descriptor {
-	__u8  bDescriptorType;
-	__le16 wDescriptorLength;
-} __attribute__ ((packed));
 
 struct hid_descriptor {
-	__u8  bLength;
-	__u8  bDescriptorType;
-	__le16 bcdHID;
-	__u8  bCountryCode;
-	__u8  bNumDescriptors;
-
-	struct hid_class_descriptor desc[1];
+	u8  bLength;
+	u8  bDescriptorType;
+	u16 bcdHID;
+	u8  bCountryCode;
+	u8  bNumDescriptors;
+	u8  wtf_usb;
+	u16 wDescriptorLength;
 } __attribute__ ((packed));
-
-
-struct hid_report_id {
-	__u32 report_type;
-};
-struct hid_usage_id {
-	__u32 usage_hid;
-	__u32 usage_type;
-	__u32 usage_code;
-};
 
 
 struct hid_driver {
 	char *name;
 	const struct hid_device_id *id_table;
-	struct list_head dyn_list;
-	spinlock_t dyn_lock;
 	int (*probe)(struct hid_device *dev, const struct hid_device_id *id);
 	void (*remove)(struct hid_device *dev);
-	const struct hid_report_id *report_table;
-	int (*raw_event)(struct hid_device *hdev, struct hid_report *report, u8 *data, int size);
-	const struct hid_usage_id *usage_table;
-	int (*event)(struct hid_device *hdev, struct hid_field *field, struct hid_usage *usage, __s32 value);
 	void (*report)(struct hid_device *hdev, struct hid_report *report);
-	__u8 *(*report_fixup)(struct hid_device *hdev, __u8 *buf, unsigned int *size);
-	int (*input_mapping)(struct hid_device *hdev, struct hid_input *hidinput, struct hid_field *field, struct hid_usage *usage, 
-		unsigned long **bit, int *max);			
-	int (*input_mapped)(struct hid_device *hdev, struct hid_input *hidinput, struct hid_field *field, struct hid_usage *usage, 
-		unsigned long **bit, int *max);
-	void (*input_configured)(struct hid_device *hdev,struct hid_input *hidinput);
-	void (*feature_mapping)(struct hid_device *hdev,struct hid_field *field,struct hid_usage *usage);
 	struct device_driver driver;
 };
 
@@ -178,29 +135,17 @@ struct hid_ll_driver {
 	void (*stop)(struct hid_device *hdev);
 	int  (*open)(struct hid_device *hdev);
 	void (*close)(struct hid_device *hdev);
-	int  (*power)(struct hid_device *hdev, int level);
+	void *fuckit_power;
 	int  (*parse)(struct hid_device *hdev);
-	void (*request)(struct hid_device *hdev, struct hid_report *report, int reqtype);
+	void *fuckit_request;
 	int  (*wait)(struct hid_device *hdev);
 	int  (*raw_request) (struct hid_device *hdev, unsigned char reportnum, __u8 *buf, size_t len, unsigned char rtype, int reqtype);
-	int  (*idle)(struct hid_device *hdev, int report, int idle, int reqtype);
+	void *fuckit_idle;
 };
 
-
 /* HID core API */
-extern int hid_debug;
-extern bool hid_ignore(struct hid_device *);
-extern int hid_add_device(struct hid_device *);
-extern void hid_destroy_device(struct hid_device *);
-extern int __must_check __hid_register_driver(struct hid_driver *, struct module *, const char *mod_name);
-extern void hid_unregister_driver(struct hid_driver *);
-
-
-#define module_hid_driver(__hid_driver) \
-	module_driver(__hid_driver, hid_register_driver, hid_unregister_driver)
-
-const struct hid_device_id *hid_match_id(struct hid_device *hdev, const struct hid_device_id *id);
-s32 hid_snto32(__u32 value, unsigned n);
+int  hid_add_device(struct hid_device *);
+void hid_destroy_device(struct hid_device *);
 
 
 /****************/
@@ -212,11 +157,6 @@ s32 hid_snto32(__u32 value, unsigned n);
 int hid_input_report(struct hid_device *, int type, u8 *, int, int);
 struct hid_device *hid_allocate_device(void);
 int hid_parse_report(struct hid_device *hid, __u8 *start, unsigned size);     
-
-
-/*  API provided by hid-core.c for USB HID drivers */
-void usbhid_close(struct hid_device *hid);
-int  usbhid_open(struct hid_device *hid);
 
 /* USB-specific HID struct, to be pointed to from struct hid_device->driver_data */
 struct usbhid_device {
@@ -247,15 +187,6 @@ static void hid_irq_in(struct urb *urb)
 {
 	hid_input_report(urb->context, 0, urb->transfer_buffer, urb->actual_length, 1);
 	usb_submit_urb(urb, GFP_ATOMIC);
-}
-
-/* Control pipe completion handler. */
-static void hid_ctrl(struct urb *urb)
-{
-	struct hid_device *hid = urb->context;
-	struct usbhid_device *usbhid = hid->driver_data;
-	clear_bit(1, &usbhid->iofl);
-	usb_autopm_put_interface_async(usbhid->intf);
 }
 
 int usbhid_open(struct hid_device *hid)
@@ -317,7 +248,7 @@ static int usbhid_parse(struct hid_device *hid)
 	usb_get_extra_descriptor(interface, (USB_TYPE_CLASS | 0x01), &hdesc);
 
 	printk("Before: rsize = %d\n", rsize);
-	rsize = le16_to_cpu(hdesc->desc[0].wDescriptorLength);
+	rsize = le16_to_cpu(hdesc->wDescriptorLength);
 	printk("After: rsize = %d\n", rsize);
 	rdesc = kmalloc(rsize, GFP_KERNEL);
 
@@ -357,7 +288,6 @@ static int usbhid_start(struct hid_device *hid)
 	usb_fill_int_urb(usbhid->urbin, dev, pipe, usbhid->inbuf, insize, hid_irq_in, hid, interval);
 
 	usbhid->urbctrl = usb_alloc_urb(0, GFP_KERNEL);
-	usb_fill_control_urb(usbhid->urbctrl, dev, 0, (void *) usbhid->cr, usbhid->ctrlbuf, 1, hid_ctrl, hid);
 	set_bit(8, &usbhid->iofl);
 
 	return 0;
@@ -371,29 +301,26 @@ static void usbhid_stop(struct hid_device *hid)
 	set_bit(7, &usbhid->iofl);
 	usb_kill_urb(usbhid->urbin);
 	usb_kill_urb(usbhid->urbctrl);
-
 	usb_free_urb(usbhid->urbin);
 	usb_free_urb(usbhid->urbctrl);
-	// usbhid->urbin   = NULL; /* don't mess up next start */
-	// usbhid->urbctrl = NULL;
-
 	hid_free_buffers(hid_to_usb_dev(hid), hid); // Probably causes leaks
 }
 
-static int usbhid_raw_request(struct hid_device *hid, unsigned char reportnum, __u8 *buf, size_t len, unsigned char rtype, int reqtype)
+static int usbhid_raw_request(struct hid_device *hid, u8 reportnum, __u8 *buf, size_t len, u8 rtype, int reqtype)
 {
+	printk("GODDAMMIT USB!!!\n");
 	return -EIO;
 }
 
 
 
 static struct hid_ll_driver usb_hid_driver = {
-	.parse = usbhid_parse,
-	.start = usbhid_start,
-	.stop = usbhid_stop,
-	.open = usbhid_open,
-	.close = usbhid_close,
-	.raw_request = usbhid_raw_request,
+	.parse 		= usbhid_parse,
+	.start 		= usbhid_start,
+	.stop  		= usbhid_stop,
+	.open  		= usbhid_open,
+	.close 		= usbhid_close,
+	.raw_request 	= usbhid_raw_request,
 };
 
 
@@ -409,11 +336,10 @@ static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *
 
 	usb_set_intfdata(intf, hid);
 	hid->ll_driver = &usb_hid_driver;
-	hid->ff_init = 0;
 	hid->dev.parent = &intf->dev;
 	hid->bus = 0x03;
 
-	strlcpy(hid->name, "Logitech USB Receiver\0", sizeof(hid->name));
+	strncpy(hid->name, "Logitech USB Receiver", sizeof(hid->name));
 	usbhid = kzalloc(sizeof(*usbhid), GFP_KERNEL);
 
 	hid->driver_data = usbhid;
@@ -465,5 +391,4 @@ module_exit(hid_exit);
 
 MODULE_DEVICE_TABLE (usb, hid_usb_ids);
 MODULE_AUTHOR("Blayson! Muahaha!");
-MODULE_DESCRIPTION("USB HID core driver");
 MODULE_LICENSE("GPL");
