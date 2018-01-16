@@ -1,5 +1,5 @@
-/* My AT and PS/2 keyboard driver
- * I've cut this driver down to about 1/3 its original size.
+/* My AT and PS/2 keyboard driver (Was 45K -> now 7K)
+ * I've cut this driver down to about 15% of its original size.
  * I probably fucked a few things up, but if so, I can't tell.
  * It still seems to work fine on my laptop. ~ Me
  */
@@ -11,15 +11,14 @@
 #include <linux/libps2.h>
 #include <linux/printk.h>
 
-#define DRIVER_DESC	"AT and PS/2 keyboard driver"
+#define DRIVER_DESC	"A stupid keyboard driver"
 MODULE_AUTHOR("Jason Mothafuckin Wilkes");
-// MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
 
 /* Scancode to keycode tables. These are just the default setting, and are loadable via a userland utility. */
 #define ATKBD_KEYMAP_SIZE	256
-
 static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
 	  0, 67, 65, 63, 61, 59, 60, 88,  0, 68, 66, 64, 62, 15, 41,117,
 	  0, 56, 42, 93, 29, 16,  2,  0,  0,  0, 44, 31, 30, 17,  3,  0,
@@ -56,6 +55,7 @@ static const unsigned short atkbd_unxlate_table[128] = {
 #define ATKBD_CMD_ENABLE	0x00f4
 #define ATKBD_RET_EMUL0		0xe0
 #define ATKBD_RET_EMUL1		0xe1
+#define log()			printk(KERN_DEBUG "[*] In %s\n", __func__)
 
 struct atkbd {
 	struct ps2dev ps2dev;
@@ -73,7 +73,7 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 	struct atkbd *atkbd = serio_get_drvdata(serio);
 	unsigned int code = data;
 
-	printk("[*] In %s: data == 0x%02x, flags == %d\n", __func__, data, flags);
+	printk("[*] In %s: data == 0x%02x\n", __func__, data);
 
 	if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK) && ps2_handle_ack(&atkbd->ps2dev, data)) {
 		printk(KERN_INFO "[*] In unlikely ps2_command. Fucking off.\n");
@@ -87,20 +87,12 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 		goto done;
 	}
 
-        /* This used to be atkbd_compat_scancode(). Most interesting piece was
-	 * code = (code & 0x7f) | ((code & 0x80) << 1); (e.g., turns 0bABCDEFGH into 0bA0BCDEFGH)
-	 * Then it would store the atkbd->emul bit in the new 0 slot, as below, for compatability with older kernels.
-	 * This is *exactly* like what Intel did with the Global Descriptor Table, and why bootloaders are such a fuckfest to write :D
-	 * printscreen and ctrl+shift stuff breaks without this */
         /* This used to be atkbd_compat_scancode(). It was a hack almost 
 	 * exactly like what Intel did with the Global Descriptor Table */
 	code &= 0b01111111;
-	if (atkbd->emul)
-		code |= 0b10000000;
-
-	atkbd->emul = 0;
-	input_event(atkbd->dev, EV_KEY, atkbd->keycode[code], data < 0x80);
+	input_event(atkbd->dev, EV_KEY, atkbd->keycode[(atkbd->emul) ? (code|0x80) : code], data < 0x80);
 	input_sync(atkbd->dev);
+	atkbd->emul = 0;
 
 done:	return IRQ_HANDLED;
 }
@@ -117,8 +109,7 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	int err = -ENOMEM;
 	int i;
 
-	printk(KERN_DEBUG "[*] In atkbd_connect\n");
-
+	log();
 	atkbd = kzalloc(sizeof(struct atkbd), GFP_KERNEL);
 	atkbd->dev = input_allocate_device();
 	ps2_init(&atkbd->ps2dev, serio);
@@ -167,7 +158,6 @@ fail:
 	return err;
 }
 
-/* atkbd_disconnect() closes and frees. */
 static void atkbd_disconnect(struct serio *serio)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
@@ -185,25 +175,14 @@ static struct serio_device_id atkbd_serio_ids[] = {
 
 static struct serio_driver atkbd_drv = {
 	.driver		= {.name = "atkbd"},
-	.description	= DRIVER_DESC,
 	.id_table	= atkbd_serio_ids,
 	.interrupt	= atkbd_interrupt,
 	.connect	= atkbd_connect,
 	.disconnect	= atkbd_disconnect,
 };
 
-static int __init atkbd_init(void)
-{
-	printk(KERN_DEBUG "[*] In %s\n", __func__);
-	return serio_register_driver(&atkbd_drv);
-}
-
-static void __exit atkbd_exit(void)
-{
-	printk(KERN_DEBUG "[*] In %s\n", __func__);
-	serio_unregister_driver(&atkbd_drv);
-}
-
+static int  __init atkbd_init(void) {log(); return serio_register_driver(&atkbd_drv);}
+static void __exit atkbd_exit(void) {log(); serio_unregister_driver(&atkbd_drv);}
 module_init(atkbd_init);
 module_exit(atkbd_exit);
 
