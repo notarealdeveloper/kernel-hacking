@@ -26,7 +26,8 @@ MODULE_LICENSE("GPL");
 
 
 /* Scancode to keycode tables. These are just the default setting, and are loadable via a userland utility. */
-#define ATKBD_KEYMAP_SIZE	512
+#define ATKBD_KEYMAP_SIZE	256
+
 static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
 	  0, 67, 65, 63, 61, 59, 60, 88,  0, 68, 66, 64, 62, 15, 41,117,
 	  0, 56, 42, 93, 29, 16,  2,  0,  0,  0, 44, 31, 30, 17,  3,  0,
@@ -46,7 +47,7 @@ static const unsigned short atkbd_set2_keycode[ATKBD_KEYMAP_SIZE] = {
 	  0,  0,  0,  0,  0,  0,  0,  0,  0,107,  0,105,102,  0,  0,112,
 	110,111,108,112,106,103,  0,119,  0,118,109,  0, 99,104,119,  0,
 
-	  0,  0,  0, 65, 99,
+//	  0,  0,  0, 65, 99,
 };
 
 static const unsigned short atkbd_unxlate_table[128] = {
@@ -61,16 +62,8 @@ static const unsigned short atkbd_unxlate_table[128] = {
 };
 
 #define ATKBD_CMD_ENABLE	0x00f4
-
-#define ATKBD_RET_ACK		0xfa
-#define ATKBD_RET_NAK		0xfe
-#define ATKBD_RET_BAT		0xaa
 #define ATKBD_RET_EMUL0		0xe0
 #define ATKBD_RET_EMUL1		0xe1
-
-#define ATKBD_KEY_NULL		255
-#define ATKBD_SPECIAL		0xfff8
-
 
 /* The atkbd control structure */
 struct atkbd {
@@ -106,18 +99,12 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 		goto out;
 	}
 
-        /* Note: This is the signature of input_event. It may be being called incorrectly... */
-        /* void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value); */
-	// input_event(dev, EV_MSC, MSC_RAW, code);
-
 	/* Checks if we should mangle the scancode to extract 'release' bit in translated mode. */
 	if ((code == ATKBD_RET_EMUL0) || (code == ATKBD_RET_EMUL1)) {
 		atkbd->emul = 1;
 		printk("atkbd->emul set to 1\n");
 		goto out;
 	}
-
-	code &= 0x7f;
 
         /* This block used to be atkbd_compat_scancode() */
 	/* The most interesting piece was the following line: */
@@ -126,13 +113,11 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 	/* Then it would store the atkbd->emul bit in the new "0" slot, as below, for compatability with older kernels */
 	/* This is *exactly* like what Intel did with the Global Descriptor Table, and why bootloaders are such a fuckfest to write! :D */
 	/* printscreen and ctrl+shift stuff breaks without this */
+	code &= 0b01111111;
 	if (atkbd->emul == 1)
-		code |= 0x80;
+		code |= 0b10000000;
 
 	atkbd->emul = 0;
-
-	//if (keycode != ATKBD_KEY_NULL)
-	//	input_event(dev, EV_MSC, MSC_SCAN, code);
 
 	input_event(dev, EV_KEY, atkbd->keycode[code], data < 0x80);
 	input_sync(dev);
@@ -199,7 +184,6 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
 	bitmap_zero(atkbd->force_release_mask, ATKBD_KEYMAP_SIZE);
 
-	// Since (atkbd->translated)
 	for (i = 0; i < 128; i++) {
 		scancode = atkbd_unxlate_table[i];
 		atkbd->keycode[i] = atkbd_set2_keycode[scancode];
@@ -223,13 +207,13 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 
 	input_dev->name = atkbd->name;
 	input_dev->phys = atkbd->phys;
-	input_dev->id.bustype = BUS_I8042;
+	// input_dev->id.bustype = BUS_I8042;
 	input_set_drvdata(input_dev, atkbd);
 	input_dev->evbit[0]  = BIT_MASK(EV_KEY);
-	input_dev->rep[REP_DELAY] = 250;
-	input_dev->rep[REP_PERIOD] = 33;
-	input_dev->keycodesize = sizeof(unsigned short);
-	input_dev->keycodemax = ARRAY_SIZE(atkbd_set2_keycode);
+	// input_dev->rep[REP_DELAY] = 250;
+	// input_dev->rep[REP_PERIOD] = 33;
+	// input_dev->keycodesize = sizeof(unsigned short);
+	// input_dev->keycodemax = ARRAY_SIZE(atkbd_set2_keycode);
 
 
         /* From include/linux/input.h
