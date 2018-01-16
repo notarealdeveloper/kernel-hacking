@@ -65,21 +65,23 @@ static const unsigned short atkbd_unxlate_table[128] = {
 #define ATKBD_RET_EMUL0		0xe0
 #define ATKBD_RET_EMUL1		0xe1
 
-/* The atkbd control structure */
 struct atkbd {
-
 	struct ps2dev ps2dev;
 	struct input_dev *dev;	/* Defined in include/linux/input.h */
-
-	/* Written only during init */
 	char phys[32];
-
 	unsigned short keycode[ATKBD_KEYMAP_SIZE];
-	bool translated;
-
-	/* Accessed only from interrupt */
 	unsigned char emul;
 };
+
+static void my_serio_close(struct serio *serio)
+{
+	if (serio->close)
+		serio->close(serio);
+	serio->drv = NULL;
+	// Locking
+	// serio->dev.driver_data = NULL;
+	// Unlocking
+}
 
 /* Here we process the data received from the keyboard into events. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
@@ -143,9 +145,6 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	atkbd->dev = input_allocate_device();
 	ps2_init(&atkbd->ps2dev, serio);
 
-	//if (serio->id.type == SERIO_8042_XL)
-	//	atkbd->translated = true;
-
 	serio->dev.driver_data = atkbd; // serio_set_drvdata(serio, atkbd);
 	serio_open(serio, drv);
 
@@ -167,29 +166,24 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 
         /* BEGIN SET DEVICE ATTRS */
 	printk(KERN_DEBUG "[*] In atkbd_set_device_attrs\n");
-
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
 	atkbd->dev->phys = atkbd->phys;
 	atkbd->dev->name = "The honorable keyboard of Jason Wilkes";
-	input_set_drvdata(atkbd->dev, atkbd);
+	atkbd->dev->dev.driver_data = atkbd; // same as input_set_drvdata(atkbd->dev, atkbd);
 	atkbd->dev->evbit[0]  = BIT_MASK(EV_KEY);
 
         /* Print some of the info we just set */
         printk(KERN_DEBUG "[*] %s : atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
         printk(KERN_DEBUG "[*] %s : atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
 
-
 	for (i = 0; i < ATKBD_KEYMAP_SIZE; i++)
 		__set_bit(atkbd->keycode[i], atkbd->dev->keybit);
 
 	input_register_device(atkbd->dev);
-
 	return 0;
 
 fail:
-	serio_close(serio);
-//	serio_set_drvdata(serio, NULL);
-	serio->dev.driver_data = NULL;
+	my_serio_close(serio);
 	input_free_device(atkbd->dev);
 	kfree(atkbd);
 	return err;
@@ -202,9 +196,7 @@ static void atkbd_disconnect(struct serio *serio)
 
 	printk(KERN_DEBUG "[*] In atkbd_disconnect\n");
 
-	serio_close(serio);
-	//serio_set_drvdata(serio, NULL);
-	serio->dev.driver_data = NULL;
+	my_serio_close(serio);
 	input_unregister_device(atkbd->dev);
 	kfree(atkbd);
 }
