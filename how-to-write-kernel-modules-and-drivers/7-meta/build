@@ -2,6 +2,7 @@
 
 module="$(cat Makefile | grep obj-m | grep -Po '[^\s]*(?=\.o)')"  # currently, this is "waffles"
 sysfsd="/sys/kernel/${module}"
+procfile="/proc/my-proc-file"
 
 test_sysfs () {
 	echo '#######################################'
@@ -22,7 +23,27 @@ test_sysfs () {
 
 	# Uninstall the hook
 	echo 1338 | sudo tee "$sysfsd"/foo &>/dev/null
-	echo '#######################################'
+	echo
+}
+
+test_procfs () {
+	echo '###########################'
+	echo '### Testing procfs file ###'
+	echo '###########################'
+	echo 'hey babycakes' | sudo tee "$procfile" &>/dev/null &&
+	cat "$procfile" &&
+	echo 'one two three holy fucking shit oh yeah this is a long string' | sudo tee "$procfile" &>/dev/null &&
+	cat "$procfile" &&
+	echo 'boops' | sudo tee "$procfile" &>/dev/null &&
+	cat "$procfile" &&
+	echo
+}
+
+show_dmesg () {
+	echo '############################'
+	echo '### Dumping dmesg buffer ###'
+	echo '############################'
+	dmesg
 }
 
 sudo true
@@ -31,7 +52,9 @@ make -j8 &&
 if [[ $(lsmod | grep -c "$module") != "0" ]]; then sudo rmmod "$module"; fi &&
 sudo dmesg -C &&
 sudo insmod ./"$module".ko &&
-test_sysfs && 
+echo &&
+test_sysfs  &&
+test_procfs &&
 sudo rmmod "$module".ko &&
 make cleanall &&
-dmesg
+show_dmesg

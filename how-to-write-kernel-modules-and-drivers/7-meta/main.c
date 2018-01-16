@@ -18,6 +18,7 @@ static int kmod_init(void)
 {
 	msg("[*] Initializing module");
 	kobj_init();
+	procfs_init();
 	modules_lsmod();
 	context_print();
 	kmod_get_retarded();
@@ -45,6 +46,7 @@ static void kmod_exit(void)
 	msg("[*] Removing module");
 	procs_print_task(NULL);
 	kobj_kill();
+	procfs_exit();
 	toplel_remove();
 	msg("[*] Done removing module");
 }

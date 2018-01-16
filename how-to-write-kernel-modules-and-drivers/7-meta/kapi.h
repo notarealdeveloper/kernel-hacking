@@ -25,6 +25,9 @@ void procs_psaux(void);
 int  kobj_init(void);
 void kobj_kill(void);
 
+/* [*] includes for procfs.c */
+int  procfs_init(void);
+void procfs_exit(void);
 
 /* [*] includes for modules.c */
 void modules_lsmod(void);
