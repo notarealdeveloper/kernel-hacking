@@ -51,16 +51,15 @@ static const unsigned short atkbd_unxlate_table[128] = {
 };
 
 #define ATKBD_CMD_ENABLE	0x00f4
-#define ATKBD_RET_EMUL0		0xe0
-#define ATKBD_RET_EMUL1		0xe1
-#define log()			printk(KERN_DEBUG "[*] In %s\n", __func__)
+#define ATKBD_WEIRD_KEY		0xe0
+#define log()			printk(KERN_DEBUG "[*] %s: Entered\n", __func__)
 
 struct atkbd {
 	struct ps2dev ps2dev;
 	struct input_dev *dev;	/* Defined in include/linux/input.h */
 	char phys[32];
 	unsigned short keycode[ATKBD_KEYMAP_SIZE];
-	unsigned char emul;
+	unsigned char  weirdkey;
 };
 
 /* Process the data received from the keyboard into events.
@@ -69,32 +68,36 @@ struct atkbd {
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
-	unsigned int code = data;
+	unsigned short code = data & 0b01111111;
 
-	printk("[*] In %s: data == 0x%02x\n", __func__, data);
+	printk(KERN_DEBUG "[*] %s: data == 0x%02x\n", __func__, data);
 
-	if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK) && ps2_handle_ack(&atkbd->ps2dev, data)) {
-		printk(KERN_DEBUG "[*] In unlikely ps2_command. Fucking off.\n");
+	// if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK) && ps2_handle_ack(&atkbd->ps2dev, data)) {
+	// if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK)) {
+	if (atkbd->ps2dev.flags & PS2_FLAG_ACK) {
+		ps2_handle_ack(&atkbd->ps2dev, data);
+		printk(KERN_DEBUG "[*] %s: atkbd not initialized yet. fucking off.\n", __func__);
 		return IRQ_HANDLED;
 	}
 
 	/* If we've got a fucked-up key (brightness, volume, etc.) then don't 
-	 * actually do anything yet! Just set atkbd->emul to 1, and do the 
+	 * actually do anything yet! Just set atkbd->weirdkey to 1, and do the 
  	 * actual processing when the key is *released*! When we look-up 
-	 * the keycode, check whether atkbd->emul is set. If it is, OR the code
- 	 * keycode with 0x80 == 128 before we look it up */
-	if ((code == ATKBD_RET_EMUL0) || (code == ATKBD_RET_EMUL1)) {
-		atkbd->emul = 1;
-		printk(KERN_DEBUG "atkbd->emul set to 1\n");
+	 * the keycode, check whether atkbd->weirdkey is set. If it is,
+ 	 * OR the keycode with 0x80 == 128 before we look it up.
+	 * Note: My pause/break key can generate 0xe1, but all other 
+	 * weird keys generate 0xe0. Who needs pause/break anyway? */
+	if (data == ATKBD_WEIRD_KEY) {
+		atkbd->weirdkey = 1;
+		printk(KERN_DEBUG "[*] %s: atkbd->weirdkey set\n", __func__);
 		return IRQ_HANDLED;
 	}
 
-        /* This used to be atkbd_compat_scancode(). It was a hack almost 
+        /* atkbd_compat_scancode() used to be here. It was a hack almost 
 	 * exactly like what Intel did with the Global Descriptor Table */
-	code &= 0b01111111;
-	input_event(atkbd->dev, EV_KEY, atkbd->keycode[(atkbd->emul) ? (code|0x80) : code], data < 0x80);
+	input_event(atkbd->dev, EV_KEY, atkbd->keycode[(atkbd->weirdkey) ? (code|0x80) : code], data < 0x80);
 	input_sync(atkbd->dev);
-	atkbd->emul = 0;
+	atkbd->weirdkey = 0;
 	return IRQ_HANDLED;
 }
 
@@ -113,20 +116,23 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	log();
 	atkbd = kzalloc(sizeof(struct atkbd), GFP_KERNEL);
 	atkbd->dev = input_allocate_device();
+
 	ps2_init(&atkbd->ps2dev, serio);
 
 	serio->dev.driver_data = atkbd; // serio_set_drvdata(serio, atkbd);
 	serio_open(serio, drv);
 
         /* BEGIN ATKBD PROBE */
+	printk(KERN_DEBUG "[*] %s: This causes a keyboard interrupt\n", __func__);
 	if (ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_ENABLE)) {
-		printk(KERN_INFO "[+] ps2_command returned nonzero. Bailing out!\n");
+		printk(KERN_INFO "[*] %s: ps2_command returned nonzero. Bailing out!\n", __func__);
 		err = -ENODEV;
                 goto fail;
 	}
+	printk(KERN_DEBUG "[*] %s: Returning from keyboard interrupt\n", __func__);
 
         /* BEGIN SET KEYCODE TABLE */
-	printk(KERN_DEBUG "[+] In atkbd_set_keycode_table\n");
+	printk(KERN_DEBUG "[*] %s: In former atkbd_set_keycode_table\n", __func__);
 	for (i = 0; i < 128; i++) {
 		scancode 		= atkbd_unxlate_table[i];
 		atkbd->keycode[i] 	= atkbd_keycode[scancode];
@@ -134,7 +140,7 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	}
 
         /* BEGIN SET DEVICE ATTRS */
-	printk(KERN_DEBUG "[+] In atkbd_set_device_attrs\n");
+	printk(KERN_DEBUG "[*] %s: In former atkbd_set_device_attrs\n", __func__);
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
 	atkbd->dev->phys = atkbd->phys;
 	atkbd->dev->name = "The honorable keyboard of Jason Wilkes";
@@ -142,8 +148,8 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	atkbd->dev->evbit[0]  = BIT_MASK(EV_KEY);
 
         /* Print some of the info we just set */
-        printk(KERN_DEBUG "[+] %s : atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
-        printk(KERN_DEBUG "[+] %s : atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
+        printk(KERN_DEBUG "[*] %s: atkbd->dev->name == %s\n", __func__, atkbd->dev->name);
+        printk(KERN_DEBUG "[*] %s: atkbd->dev->phys == %s\n", __func__, atkbd->dev->phys);
 
 	for (i = 0; i < ATKBD_KEYMAP_SIZE; i++)
 		__set_bit(atkbd->keycode[i], atkbd->dev->keybit);
@@ -162,7 +168,7 @@ fail:
 static void atkbd_disconnect(struct serio *serio)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
-	printk(KERN_DEBUG "[*] In %s\n", __func__);
+	log();
 	serio_close(serio);
 	serio->dev.driver_data = NULL;
 	input_unregister_device(atkbd->dev);
