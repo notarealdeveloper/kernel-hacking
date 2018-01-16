@@ -1,0 +1,125 @@
+/* minimal examples of how to use various kernel functions */
+
+
+/* make a simple msg() macro */
+#define msg(fmt, args...) \
+	printk(KERN_DEBUG "%s: " fmt "\n", __func__, ## args)
+
+
+/* glob.h */
+#include <linux/glob.h>
+glob_match("*u?c[:alpha:]k*", "cupc4kes")
+
+
+/* ptrace.h: get register state for any task_struct */
+#include <linux/ptrace.h>
+struct pt_regs *regs;		/* defined in <asm/ptrace.h> */
+regs = task_pt_regs(current);	/* defined in <asm/processor.h> */
+/* utility functions for dealing with pt_regs */
+unsigned long sp = user_stack_pointer(regs);
+unsigned long pc = instruction_pointer(regs);
+long callno = syscall_get_nr(target, regs);	/* #include <asm/syscall.h> */
+if (callno != -1L) 
+	syscall_get_arguments(current, regs, 0, /* maxargs */ 6, args);
+
+
+/* module.h */
+#include <linux/module.h>
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Jason Wilkes");
+MODULE_DESCRIPTION("A module for goofing around");
+module_init(kmod_init);
+module_exit(kmod_exit);
+struct module *mod = THIS_MODULE;
+
+
+/* list.h: implementing lsmod */
+#include <linux/list.h>
+struct module *mod = THIS_MODULE;		/* #include <linux/module.h> */
+struct list_head *modules = mod->list.prev;
+list_for_each_entry(mod, modules, list) {
+	printk("%-24s at %p\n", mod->name, mod);
+}
+
+
+/* sched.h: implementing ps aux */
+#include <linux/sched.h>
+struct task_struct *task;
+for_each_process(task) {
+	printk("%s (pid = %d)\n", task->comm, task->pid);
+}
+
+
+/* reboot.h */
+#include <linux/reboot.h>
+kernel_restart(NULL);
+
+
+/* sysfs.h */
+#include <linux/sysfs.h>
+#include <linux/kobject.h>
+#include <linux/string.h>
+static int foo;
+static ssize_t foo_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", foo);
+}
+static ssize_t foo_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	sscanf(buf, "%u", &foo);
+	return count;
+}
+static struct kobj_attribute 	foo_attribute 	= __ATTR(foo, 0664, foo_show, foo_store);    /* register foo_show & foo_store	*/
+static struct attribute 	*attrs[] 	= { &foo_attribute.attr, NULL };	     /* create a group of attributes	*/
+static struct attribute_group 	attr_group	= { .attrs = attrs, /* .name = "mydir" */ }; /* to put file(s) in DIRNAME/mydir	*/
+static struct kobject *my_kobj;
+#define DIRNAME	THIS_MODULE->name	/* #include <linux/module.h> for this */
+int sysfs_enter(void)
+{
+	int ret;
+	/* create /sys/kernel/DIRNAME */
+	my_kobj = kobject_create_and_add(DIRNAME, kernel_kobj);	/* should really return -ENOMEM if my_kobj is NULL */
+	/* create the files associated with this kobject */
+	ret = sysfs_create_group(my_kobj, &attr_group);		/* should really call kobject_put(my_kobj) if (ret) */
+	return ret;
+}
+void sysfs_leave(void)
+{
+	kobject_put(my_kobj);
+}
+
+
+/* uaccess.h */
+#include <asm/uaccess.h>
+/* From arch/x86/include/asm/uaccess.h
+ * ===================================
+ * #define user_addr_max() (current_thread_info()->addr_limit.seg)
+ * #define KERNEL_DS	MAKE_MM_SEG(-1UL)
+ * #define USER_DS 	MAKE_MM_SEG(TASK_SIZE_MAX)
+ * #define get_ds()	(KERNEL_DS)
+ * #define get_fs()	(current_thread_info()->addr_limit)
+ */
+void uaccess_access_ok(void *p)
+{
+	if (access_ok(VERIFY_READ, p, 1))
+		printk("[+] RD access okay (%p)\n", p);
+	else
+		printk("[-] RD access fail (%p)\n", p);
+
+	if (access_ok(VERIFY_WRITE, p, 1))
+		printk("[+] WR access okay (%p)\n", p);
+	else
+		printk("[-] WR access fail (%p)\n", p);
+}
+void uaccess_show_thread_info(void)
+{
+	/* may need to cast top two to (void *) */
+	printk("user_addr_max() == %p\n", user_addr_max()); /* implemented as current_thread_info()->addr_limit.seg */
+	printk("current_thread_info()->cpu == %d\n", current_thread_info()->cpu);
+}
+
+
+/* fuckery */
+#define CR0_WP                      0x00010000
+#define DISABLE_WRITE_PROTECTION()  (write_cr0(read_cr0() & ~CR0_WP))
+#define ENABLE_WRITE_PROTECTION()   (write_cr0(read_cr0() |  CR0_WP))

@@ -1,0 +1,207 @@
+#!/bin/bash
+
+############
+### PROC ###
+############
+
+cat /proc/interrupts				# info about irq mappings
+cat /proc/vmstat				# info about kernel variables
+cat /proc/cgroups				# agrees with `mount | grep cgroup` and `ls /sys/fs/cgroup/`
+cat /proc/modules				# kernel modules. Similar to what I wrote in my meta-module!
+cat /proc/misc					# seems to be misc kernel modules, not listed in /proc/modules
+cat /proc/version				# almost identical to `uname -a`
+cat /proc/uptime				# uptime in 2 formats (both in seconds)
+cat /proc/cmdline				# arguments that grub passed to the kernel
+zcat /proc/config.gz				# hello, old friend ;)
+cat /proc/iomem					# memory map of io devices (cool!)
+cat /proc/ioports				# ioport map of io devices (cool!)
+cat /proc/softirqs				# presumably, number of software interrupts of each type, since last boot
+cat /proc/partitions				# partition info on all drives (sda, sr0, etc.)
+cat /proc/diskstats				# similar to /proc/partitions.
+cat /proc/kallsyms				# kernel symbols (like System.map), and which module they live in (awesome!)
+cat /proc/stat					# various kernel stats, for each cpu
+cat /proc/timer_list				# info on (presumably) timer interrupts
+cat /proc/swaps					# swap partitions
+cat /proc/consoles				# not sure what this tells us. switching ttys doesn't change it.
+cat /proc/crypto				# crypto algorithms supported by the kernel
+cat /proc/slabinfo				# info about (presumably) the kernel heap
+cat /proc/zoneinfo				# seems to be smp/numa information
+cat /proc/fb					# 0 inteldrmfb
+cat /proc/schedstat				# scheduler info, for each processor
+cat /proc/pagetypeinfo				# more mm information
+cat /proc/loadavg				# load average statistics, presumably since last boot
+cat /proc/filesystems				# cat it; mount -r -t ufs -o ufstype=ufs2 /dev/sda4 /mnt/bsd/; cat it; umount + rmmod ufs; cat it
+cat /proc/mounts				# the exact output of mount
+cat /proc/$(readlink /proc/mounts)		# where the /proc/mounts file really lives (/proc/self/mounts)
+
+# /proc/driver					# only one file
+cat /proc/driver/rtc				# real time clock info
+
+# /proc/scsi					# only two files
+cat /proc/scsi/scsi				# nice info on attached SCSI devices
+cat /proc/scsi/device_info			# seems to be a list of vendors (why?)
+
+# /proc/fs					# info about mounted filesystems, and what options they're mounted with
+ls /proc/fs					# ext4(super cool) jbd2(not much) nfsd(empty)
+cat /proc/fs/ext4/sda1/options			# info about how my /boot partition was mounted
+cat /proc/fs/ext4/sda5/options			# info about how my /home partition was mounted
+diff <(cat /proc/fs/ext4/sda1/options) \
+     <(cat /proc/fs/ext4/sda7/options)
+
+
+# /proc/sysrq-trigger
+sysrq_cmd () {
+	[[ $(printf "$1" | wc -c) != 1 ]] && echo -e "Usage:\n======" && sysrq_cmd h && return
+	dmesg -C && printf "$1" > /proc/sysrq-trigger && dmesg
+}
+sysrq_cmd h	# show help
+sysrq_cmd q	# show all timers
+sysrq_cmd w	# show blocked tasks
+sysrq_cmd z	# dump ftrace buffer
+sysrq_cmd t	# show task states
+
+# /proc/irq					# one main file, then a bunch of numbered dirs, one for each IRQ
+get_irq () {
+	[[ -z "$1" ]] && echo -e "Usage: get_irq <driver name>" && return
+	irqnum=$(cat /proc/interrupts | grep -P "$1" | grep -Po '^[\s]*[\d]+' | sed 's@\s@@g')
+	echo -n "${irqnum}"
+}
+cat /proc/irq/default_smp_affinity		# ff
+ls  /proc/irq/`get_irq iwlwifi`/
+cat /proc/irq/`get_irq iwlwifi`/spurious
+ls  /proc/irq/`get_irq acpi`/
+cat /proc/irq/`get_irq acpi`/spurious
+
+# /proc/bus					# only 2 subdirs: pci/ input/
+cat /proc/bus/pci/devices			# lots of pci device info, including vendor:id and kernel modules (clean w/ | sed -r 's@[\t ]+@ @g')
+cat /proc/bus/input/devices			# has *lots* of info about input devices!
+cat /proc/bus/input/handlers			# presumably interrupt handlers!
+
+# /proc/acpi					# only 2 files:
+cat /proc/acpi/wakeup				# which devices can wake the system (cool!)
+cat /proc/acpi/button/lid/LID/state		# whether the lid is open or not (lel)
+
+# /proc/net
+cat /proc/net/arp				# arp cache! ahows ip -> mac mappings
+cat /proc/net/udp				# udp connections
+cat /proc/net/tcp				# tcp connections! ip in little endian hex (e.g., 0100A8C0:0050 == 192.168.0.1:80)
+cat /proc/net/route				# shows info about default gateway, etc.
+cat /proc/net/netstat				# shows detailed info about net config
+cat /proc/net/unix				# unix domain sockets (mostly stuff in /tmp and /run)
+cat /proc/net/protocols				# info about how the kernel supports icmp, tcp, udp, etc.
+cat /proc/net/stat/arp_cache			# lower-level arp-cache info
+
+#################
+### /proc/sys ###
+#################
+
+# /proc/sys/fs
+cat /proc/sys/fs/file-max			# 800650
+cat /proc/sys/fs/file-nr			# 3328 0 800650
+cat /proc/sys/fs/pipe-max-size			# 1048576
+cat /proc/sys/fs/nr_open			# 1048576
+cat /proc/sys/fs/protected_hardlinks		# 1
+cat /proc/sys/fs/protected_symlinks		# 1
+cat /proc/sys/fs/aio-nr				# 0
+cat /proc/sys/fs/aio-max-nr			# 65536
+cat /proc/sys/fs/dir-notify-enable		# 1
+cat /proc/sys/fs/inode-nr			# 26757 183
+cat /proc/sys/fs/inode-state			# 26757 183 0 0 0 0 0
+cat /proc/sys/fs/inotify/max_user_instances	# 128
+cat /proc/sys/fs/inotify/max_user_watches	# 8192
+cat /proc/sys/fs/inotify/max_queued_events	# 16384
+cat /proc/sys/fs/epoll/max_user_watches		# 1649950
+
+# /proc/sys/kernel				# lots of super cool stuff
+cat /proc/sys/kernel/ostype			# Linux
+cat /proc/sys/kernel/osrelease 			# 3.18.0-rc5-JWNIX
+cat /proc/sys/kernel/bootloader_type		# 114 (grub)
+cat /proc/sys/kernel/bootloader_version		# 2
+cat /proc/sys/kernel/tainted			# 0 if not tainted
+cat /proc/sys/kernel/domainname			# (none)
+cat /proc/sys/kernel/ctrl-alt-del		# 0
+cat /proc/sys/kernel/hostname			# Shannon
+cat /proc/sys/kernel/pid_max			# 32768
+cat /proc/sys/kernel/version 			# #3 SMP PREEMPT Sat Nov 22 10:23:15 PST 2014
+cat /proc/sys/kernel/threads-max 		# 62940
+cat /proc/sys/kernel/modprobe			# /sbin/modprobe
+cat /proc/sys/kernel/modules_disabled		# 0
+cat /proc/sys/kernel/printk_ratelimit		# num seconds to wait before re-enabling messages
+cat /proc/sys/kernel/printk_ratelimit_burst	# num messages accepted before rate-limiting
+cat /proc/sys/kernel/randomize_va_space		# 2
+cat /proc/sys/kernel/sched_time_avg_ms		# 1000
+cat /proc/sys/kernel/sched_child_runs_first	# 0
+cat /proc/sys/kernel/panic_on_oops		# 0
+cat /proc/sys/kernel/panic			# 0
+
+# /proc/sys/vm/					# virtual memory info
+# /proc/sys/net/				# more networking info
+
+#############
+### SYSFS ###
+#############
+
+# /sys/power :D
+echo mem    > /sys/power/state                  # works as expected
+echo freeze > /sys/power/state                  # behaves strangely
+echo disk   > /sys/power/state                  # hardlocks machine
+
+##################
+### /sys/class ###
+##################
+
+# The hwmon module gives hardware monitoring support via /sys/class
+ls /sys/class/
+
+# /sys/class/backlight
+echo 300  > /sys/class/backlight/intel_backlight/brightness
+cp /sys/class/backlight/intel_backlight/{max_,}brightness
+echo 1500 > /sys/class/backlight/intel_backlight/brightness
+
+# /sys/class/graphics/
+cat /sys/class/graphics/fb0/bits_per_pixel      # 32
+cat /sys/class/graphics/fb0/name                # inteldrmfb
+cat /sys/class/graphics/fb0/virtual_size        # 1366,768
+echo 0 > /sys/class/graphics/fbcon/cursor_blink # stop vte cursor blinking
+echo 1 > /sys/class/graphics/fbcon/cursor_blink # start vte cursor blinking
+
+# sys/class/net
+cat /sys/class/net/enp3s0/address		# 08:60:6e:08:f0:75
+cat /sys/class/net/wlp2s0/address 		# 60:6c:66:5d:b1:e1
+cat /sys/class/net/lo/address			# 00:00:00:00:00:00
+cat /sys/class/net/enp3s0/broadcast		# ff:ff:ff:ff:ff:ff
+cat /sys/class/net/enp3s0/addr_len		# 6
+cat /sys/class/net/enp3s0/device/vendor		# 0x1969 (Atheros)
+cat /sys/class/net/enp3s0/device/device 	# 0x1083
+cat /sys/class/net/enp3s0/device/irq		# 30
+cat /sys/class/net/enp3s0/device/uevent		# 
+cat /sys/class/net/enp3s0/device/firmware_node/path # \_SB_.PCI0.RP04.GLAN
+cat /sys/class/net/wlp2s0/device/firmware_node/path # \_SB_.PCI0.RP02.WLAN
+
+# /sys/class/input
+cat /sys/class/input/mouse0/dev
+cat /sys/class/input/mouse0/uevent		# Gives major & minor numbers
+cat /sys/class/input/mouse0/device/name		# Logitech USB Receiver
+cat /sys/class/input/mouse0/device/phys		# usb-0000:00:14.0-1/input0
+cat /sys/class/input/mouse0/device/uevent	# Lots of information
+cat /sys/class/input/mouse0/device/id/bustype
+cat /sys/class/input/mouse0/device/id/product
+cat /sys/class/input/mouse0/device/id/vendor
+cat /sys/class/input/mouse0/device/id/version
+ls -ld /sys/class/input/mouse0/device/subsystem
+
+# /sys/class/dmi
+ls  /sys/class/dmi/id/
+cat /sys/class/dmi/id/bios_vendor		# American Megatrends Inc.
+cat /sys/class/dmi/id/bios_version		# Q400A.209
+cat /sys/class/dmi/id/bios_date			# 11/08/2012
+cat /sys/class/dmi/id/board_name		# Q400A
+cat /sys/class/dmi/id/board_version		# 1.0
+cat /sys/class/dmi/id/board_vendor 		# ASUSTeK COMPUTER INC.
+cat /sys/class/dmi/id/chassis_vendor		# ASUSTeK COMPUTER INC.
+cat /sys/class/dmi/id/sys_vendor		# ASUSTeK COMPUTER INC.
+cat /sys/class/dmi/id/product_name 		# Q400A
+cat /sys/class/dmi/id/product_version 		# 1.0
+cat /sys/class/dmi/id/board_asset_tag		# ATN12345678901234567
+cat /sys/class/dmi/id/product_serial 		# D3N0AS11219810B
+cat /sys/class/dmi/id/product_uuid		# C1739EDB-3487-7D9E-6866-08606E08F075

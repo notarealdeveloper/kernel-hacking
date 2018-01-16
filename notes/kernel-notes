@@ -1,0 +1,98 @@
+# Various notes that don't quite fit anywhere else in here
+
+######################
+### CONFIG OPTIONS ###
+######################
+
+# These help to make sense of those oops messages like
+# "unable to handle kernel paging request at address C0000010"
+CONFIG_KALLSYMS
+CONFIG_KALLSYMS_ALL
+
+# For eavesdropping on raw usb output.
+# CONFIG_USB_DEVICEFS=y (seems to be removed)
+CONFIG_USB_MON=y
+
+# Other neat ones
+CONFIG_DEBUG_INFO       # Compile the kernel with debugging symbols
+CONFIG_READABLE_ASM     # Don't do optimizations that confuse humans
+
+# To get encrypted partitions, you need the modules "loop" and "dm-crypt"
+
+############################
+### DEBUGGING THE KERNEL ###
+############################
+
+printk_ratelimit
+================
+if (printk_ratelimit( ))
+	printk(KERN_NOTICE "The printer is still on fire\n");
+
+printk_ratelimit works by tracking how many messages are sent to the console. When the level of output exceeds a threshold, printk_ratelimit starts returning 0 and causing messages to be dropped. The behavior of printk_ratelimit can be customized by modifying /proc/sys/kernel/ printk_ratelimit (the number of seconds to wait before re-enabling messages) and are /proc/sys/kernel/printk_ratelimit_burst (the number of messages accepted before rate-limiting).
+
+
+Using gdb on a running kernel
+=============================
+You can use gdb on a running kernel. (read-only; i.e. you cannot change values or set break points.)
+You'll need to enable CONFIG_PROC_FS and CONFIG_DEBUG_INFO.
+Then compile the kernel with -g; edit arch/i386/Makefile appropriately, then do a "make clean".
+
+Using gdb on a kernel image on disk
+===================================
+sudo gdb /usr/src/linux/vmlinux /proc/kcore
+
+# gdb caches things, which normally makes sense for a binary on disk, but fucks us with the kernel.
+# Run this command to flush the cache.
+core-file /proc/kcore
+
+# printing information
+p jiffies
+
+
+debugfs: found under /sys/kernel/debug/
+=======================================
+mount | grep debugfs
+# Shows `debugfs on /sys/kernel/debug type debugfs (rw,relatime)`
+# If it's not already mounted, you can do: mount -t debugfs none /sys/kernel/debug
+
+cat /sys/kernel/debug/dri/0/clients
+# shows three pids. grepping ps aux for them shows that they're X, cinnamon, and chromium.
+# I guess these are the "big dogs" of video driver utilization.
+
+
+###############
+### DRIVERS ###
+###############
+
+hwinfo
+======
+Gives info about drivers, even if they're built into the kernel.
+
+
+USB drivers
+===========
+# Eavesdropping on raw usb output.
+# 1st: CONFIG_USB_MON=y in kernel config
+# 2nd: modprobe usbmon
+# Arch mounts debugfs automatically, but if it's ever not there:
+# sudo mount -t debugfs none_debugs /sys/kernel/debug
+# Get bus number with lsusb
+# Old kernels: cat /sys/kernel/debug/usbmon/<thingy>
+# Newer kernels:
+cat /sys/kernel/debug/usb/usbmon/1u
+# cat /sys/kernel/debug/usb/usbmon/1s works too
+
+Race conditions (LDD, pg 53)
+============================
+...you should always remember that some other part of the kernel can make use of any facility you register immediately after that registration has completed. It is entirely possible, in other words, that the kernel will make calls into your module while your initialization function is still running. So your code must be prepared to be called as soon as it completes its first registration. Do not register any facility until all of your internal initialization needed to support that facility has been completed.
+
+
+######################
+### VIRTUAL MEMORY ###
+######################
+
+In Processor Type and Features, enabling the option "kernel crash dumps" reveals an additional option to choose the physical address where the kernel is loaded in memory. The default seems to be 0x1000000, which is the 16MB mark. However, a few printk's from in and around start_kernel show:
+Top of the bss segment is near   ffffffff81c0f001
+Top of the data segment is near  ffffffff81a1b050
+Top of the stack segment is near ffffffff81a03f4f
+These are the virtual addresses. Presumably somewhere in the mm tree there's a function that we can use to translate these. Also note: the order of bss, data, & stack is different than it is for userland processes. This is consistent with something I've heard before, which is that the stack *does* actually grow upward in the kernel.

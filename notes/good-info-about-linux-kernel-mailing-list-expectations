@@ -1,0 +1,83 @@
+# This is a rant from LKML, where a maintainer's (understandable) bitching
+# provides valuable and not-often-documented info about what kernel
+# maintainers like. Keep this in mind.
+
+
+Date	Sat, 13 Dec 2014 00:24:03 +0100 (CET)
+From	Thomas Gleixner <>
+Subject	Maintainer abuse
+
+I'm really starting to get seriously grumpy about this.
+
+Everyone is aware that we are in the middle of the merge window. So
+this is definetely NOT the time to send anything else than urgent
+bugfixes or the usual question/reply on something which was discussed
+before.
+
+I really consider it to be maintainer abuse to have
+
+  [PATCH V5 00/23] Generic BMIPS kernel
+  [RFC][PATCH 0/8] x86, mpx: Support 32-bit binaries on 64-bit kernels
+  [v3 00/26] Add VT-d Posted-Interrupts support
+
+i.e. 57 patches to look at in my inbox TODAY in the middle of the
+merge window where I have to make other really more urgent
+decisions.
+
+Not to talk about the other patch series which arrived in the past few
+days after the merge window opened. That sums up to a total of more
+than 200 patches, some of them superseeded by now.
+
+Nothing of this is 3.19 material so posting it right now is just
+useless. I'm not going to look at it and I'm not going to look at it
+next week either.
+
+This whole featuritis driven 'post crap as fast as you can' thing has
+to stop, really. I'm observing the following patterns in a
+frightingly increasing way:
+
+ - Posting of massive patch sets right during or just before the merge
+   window
+
+ - Reposting of patchsets before the reviewer/maintainer had a chance
+   to reply to ALL of N patches
+
+This really has to stop.
+
+Yours grumpy
+
+      tglx
+
+
+
+
+Date	Sat, 13 Dec 2014 00:43:36 +0100
+From	Borislav Petkov <>
+Subject	Re: Maintainer abuse
+
+On Sat, Dec 13, 2014 at 12:24:03AM +0100, Thomas Gleixner wrote:
+>  - Posting of massive patch sets right during or just before the merge
+>    window
+> 
+>  - Reposting of patchsets before the reviewer/maintainer had a chance
+>    to reply to ALL of N patches
+
+Absolutely agreed.
+
+The rule of sending out patches and collecting feedback for a week at
+least is not really being respected, from my experience. Shit gets
+blasted out at the highest rate possible. Maybe lkml should have a
+git-send-email throttle.
+
+And I have the sneaking impression that a lot of people have not really
+understood what merge window means.
+
+> Yours grumpy
+
+And then they wonder why reviewers/maintainers are grumpy.
+
+-- 
+Regards/Gruss,
+    Boris.
+
+Sent from a fat crate under my desk. Formatting is fine.

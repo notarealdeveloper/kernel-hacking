@@ -1,0 +1,394 @@
+/* For more funky compiler __attribute__ tricks:
+ * gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html 
+ */
+
+include/linux/compiler.h
+========================
+#define __user __attribute__((noderef, address_space(1)))
+#define __section(S) __attribute__((__section__(#S)))
+#define __force __attribute__((force))
+
+/* __compiletime_object_size(obj) */
+// Default in include/linux/compiler-gcc4.h
+#if GCC_VERSION >= 40100 && GCC_VERSION < 40600
+# define __compiletime_object_size(obj) __builtin_object_size(obj, 0)
+#endif
+// Fallback in current file (include/linux/compiler.h)
+/* Compile time object size, -1 for unknown */
+#ifndef __compiletime_object_size
+# define __compiletime_object_size(obj) -1
+#endif
+
+include/linux/compiler-gcc.h
+============================
+#define __always_inline		inline __attribute__((always_inline))
+#define barrier() 		__asm__ __volatile__("": : :"memory") 	/* The "volatile" is due to gcc bugs */
+
+
+include/linux/compiler-gcc4.h
+include/linux/compiler-gcc5.h
+=============================
+#define __cold 		__attribute__((__cold__))
+#define __visible 	__attribute__((externally_visible))
+
+
+include/linux/init.h
+====================
+#define __init		__section(.init.text) __cold notrace
+#define __initdata	__section(.init.data)
+#define __initconst	__constsection(.init.rodata)		/* __constsection is just __section */
+#define __exitdata	__section(.exit.data)
+#define __exit_call	__used __section(.exitcall.exit)
+#define __constsection(x) __section(x)
+
+So...
+__initdata 					expands to...
+__section(.init.data)				expands to...
+__attribute__((__section__(".init.data")))
+
+Grepping the kernel tree for '".init.data"' gives two interesting results:
+arch/x86/realmode/rmpiggy.S:	.section ".init.data","aw"
+include/linux/init.h:		#define __INITDATA	.section	".init.data","aw",%progbits
+
+/* for asm routines */
+#define __HEAD          .section        ".head.text","ax"
+#define __INIT          .section        ".init.text","ax"
+
+
+
+kernel/module.c
+===============
+static int load_module(struct load_info *info, const char __user *uargs, int flags)
+
+
+struct inode
+============
+The inode structure is used by the kernel internally to represent files. Therefore, it is different from the file structure that represents an open file descriptor. There can be numerous file structures representing multiple open descriptors on a single file, but they all point to a single inode structure.
+
+
+linux/sched.h: task_struct
+==========================
+The kernel keeps track of processes using the task vector -- containing 512 elements by default -- which is a vector of pointers to task_struct structures. Each task_struct contains all of the information about a process (its pid, its permissions, its current state, etc.)
+
+
+include/linux/semaphore.h: struct semaphore
+===========================================
+#include <linux/list.h>
+#include <linux/spinlock.h>
+
+/* Please don't access any members of this structure directly */
+struct semaphore {
+	raw_spinlock_t		lock;
+	unsigned int		count;
+	struct list_head	wait_list;
+};
+
+extern void down(struct semaphore *sem);	/* acquire */
+extern int __must_check down_interruptible(struct semaphore *sem);
+extern int __must_check down_killable(struct semaphore *sem);
+extern int __must_check down_trylock(struct semaphore *sem);
+extern int __must_check down_timeout(struct semaphore *sem, long jiffies);
+extern void up(struct semaphore *sem);		/* release */
+
+/*
+From LDD pg110: Semaphores are a well-understood concept in computer science. At its core, a semaphore is a single integer value combined with a pair of functions that are typically called P and V. A process wishing to enter a critical section will call P on the relevant semaphore; if the semaphore’s value is greater than zero, that value is decremented by one and the process continues. If, instead, the semaphore’s value is 0 (or less), the process must wait until somebody else releases the semaphore. Unlocking a semaphore is accomplished by calling V; this function increments the value of the semaphore and, if necessary, wakes up processes that are waiting. When semaphores are used for mutual exclusion—keeping multiple processes from running within a critical section simultaneously—their value will be initially set to 1. Such a semaphore can be held only by a single process or thread at any given time. A semaphore used in this mode is sometimes called a mutex, which is, of course, an abbreviation for "mutual exclusion." Almost all semaphores found in the Linux kernel are used for mutual exclusion.
+*/
+
+
+include/asm-generic/uaccess.h: userspace access
+===============================================
+/* seems to contain fallback definitions, in case they're not defined by a given architecture */
+#include <asm/segment.h>
+
+#define MAKE_MM_SEG(s)	((mm_segment_t) { (s) })
+
+#ifndef KERNEL_DS
+#define KERNEL_DS	MAKE_MM_SEG(~0UL)
+#endif
+
+#ifndef USER_DS
+#define USER_DS		MAKE_MM_SEG(TASK_SIZE - 1)
+#endif
+
+#ifndef get_fs
+#define get_ds()	(KERNEL_DS)
+#define get_fs()	(current_thread_info()->addr_limit)
+
+
+/* clearly a fallback definition */
+#define access_ok(type, addr, size) __access_ok((unsigned long)(addr),(size))
+
+/*
+ * The architecture should really override this if possible, at least
+ * doing a check on the get_fs()
+ */
+#ifndef __access_ok
+static inline int __access_ok(unsigned long addr, unsigned long size)
+{
+	return 1;
+}
+#endif
+
+
+/* copy_to_user! */
+static inline long copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	might_fault();
+	if (access_ok(VERIFY_WRITE, to, n))
+		return __copy_to_user(to, from, n);
+	else
+		return n;
+}
+
+/* __copy_to_user */
+#ifndef __copy_to_user
+static inline __must_check long __copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	if (__builtin_constant_p(n)) {
+		switch(n) {
+		case 1:
+			*(u8 __force *)to  = *(u8 *)from;
+			return 0;
+		case 2:
+			*(u16 __force *)to = *(u16 *)from;
+			return 0;
+		case 4:
+			*(u32 __force *)to = *(u32 *)from;
+			return 0;
+#ifdef CONFIG_64BIT
+		case 8:
+			*(u64 __force *)to = *(u64 *)from;
+			return 0;
+#endif
+		default:
+			break;
+		}
+	}
+
+	memcpy((void __force *)to, from, n);
+	return 0;
+}
+#endif
+
+
+arch/x86/include/asm/uaccess.h: userspace access
+================================================
+
+/* copy_from_user */
+static inline unsigned long __must_check
+copy_from_user(void *to, const void __user *from, unsigned long n)
+{
+	int sz = __compiletime_object_size(to);
+
+	might_fault();
+
+	/*
+	 * While we would like to have the compiler do the checking for us
+	 * even in the non-constant size case, any false positives there are
+	 * a problem (especially when DEBUG_STRICT_USER_COPY_CHECKS, but even
+	 * without - the [hopefully] dangerous looking nature of the warning
+	 * would make people go look at the respecitive call sites over and
+	 * over again just to find that there's no problem).
+	 *
+	 * And there are cases where it's just not realistic for the compiler
+	 * to prove the count to be in range. For example when multiple call
+	 * sites of a helper function - perhaps in different source files -
+	 * all doing proper range checking, yet the helper function not doing
+	 * so again.
+	 *
+	 * Therefore limit the compile time checking to the constant size
+	 * case, and do only runtime checking for non-constant sizes.
+	 */
+
+	if (likely(sz < 0 || sz >= n))
+		n = _copy_from_user(to, from, n);
+	else if(__builtin_constant_p(n))
+		copy_from_user_overflow();
+	else
+		__copy_from_user_overflow(sz, n);
+
+	return n;
+}
+
+/* copy_to_user */
+/* To understand what's going on here, we need to understand __compiletime_object_size()
+ * This macro is defined in compiler*.h, where the * means there are defaults in one or several files
+ * (in this case: compiler-gcc4.h) and fallbacks in another (in this case: compiler.h).
+ * Basically, __compiletime_object_size(obj) == __builtin_object_size(obj, 0) if we have the right GCC
+ * version, & __compiletime_object_size(obj) == -1 otherwise. This is why the function below allows for
+ * the possibility that sz is negative.
+ */
+static inline unsigned long __must_check copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	int sz = __compiletime_object_size(from);
+	might_fault();
+
+	/* See the comment in copy_from_user() above. */
+	if (likely(sz < 0 || sz >= n))
+		n = _copy_to_user(to, from, n);
+	else if(__builtin_constant_p(n))
+		copy_to_user_overflow();
+	else
+		__copy_to_user_overflow(sz, n);
+
+	return n;
+}
+
+/* Here's _copy_to_user(to, from, n), from arch/x86/lib/usercopy_32.c */
+
+/**
+ * copy_to_user: - Copy a block of data into user space.
+ * @to:   Destination address, in user space.
+ * @from: Source address, in kernel space.
+ * @n:    Number of bytes to copy.
+ *
+ * Context: User context only.  This function may sleep.
+ *
+ * Copy data from kernel space to user space.
+ *
+ * Returns number of bytes that could not be copied.
+ * On success, this will be zero.
+ */
+unsigned long _copy_to_user(void __user *to, const void *from, unsigned n)
+{
+	if (access_ok(VERIFY_WRITE, to, n))
+		n = __copy_to_user(to, from, n);
+	return n;
+}
+EXPORT_SYMBOL(_copy_to_user);
+
+/* Here's access_ok */
+#define access_ok(type, addr, size) \
+	likely(!__range_not_ok(addr, size, user_addr_max()))
+
+/* Here's __range_not_ok */
+#define __range_not_ok(addr, size, limit)				\
+({									\
+	__chk_user_ptr(addr);						\
+	__chk_range_not_ok((unsigned long __force)(addr), size, limit); \
+})
+
+/* Here's __chk_user_ptr: */
+# define __chk_user_ptr(x) (void)0
+
+/* And finally, here's __chk_range_not_ok */
+
+/*
+ * Test whether a block of memory is a valid user space address.
+ * Returns 0 if the range is valid, nonzero otherwise.
+ */
+static inline bool __chk_range_not_ok(unsigned long addr, unsigned long size, unsigned long limit)
+{
+	/*
+	 * If we have used "sizeof()" for the size,
+	 * we know it won't overflow the limit (but
+	 * it might overflow the 'addr', so it's
+	 * important to subtract the size from the
+	 * limit, not add it to the address).
+	 */
+	if (__builtin_constant_p(size))
+		return addr > limit - size;
+
+	/* Arbitrary sizes? Be careful about overflow */
+	addr += size;
+	if (addr < size)
+		return true;
+	return addr > limit;
+}
+
+
+
+/* Okay, here's __copy_to_user, from arch/x86/include/asm/uaccess_64.h */
+static __always_inline __must_check
+int __copy_to_user(void __user *dst, const void *src, unsigned size)
+{
+	might_fault();
+	return __copy_to_user_nocheck(dst, src, size);
+}
+
+/* Here's __copy_to_user_nocheck, also from arch/x86/include/asm/uaccess_64.h */
+static __always_inline __must_check
+int __copy_to_user_nocheck(void __user *dst, const void *src, unsigned size)
+{
+	int ret = 0;
+
+	if (!__builtin_constant_p(size))
+		return copy_user_generic((__force void *)dst, src, size);
+	switch (size) {
+	case 1:__put_user_asm(*(u8 *)src, (u8 __user *)dst,   ret, "b", "b", "iq", 1);
+		return ret;
+	case 2:__put_user_asm(*(u16 *)src, (u16 __user *)dst, ret, "w", "w", "ir", 2);
+		return ret;
+	case 4:__put_user_asm(*(u32 *)src, (u32 __user *)dst, ret, "l", "k", "ir", 4);
+		return ret;
+	case 8:__put_user_asm(*(u64 *)src, (u64 __user *)dst, ret, "q", "",  "er", 8);
+		return ret;
+	case 10:
+		__put_user_asm(*(u64 *)src, (u64 __user *)dst,ret, "q", "",  "er", 10);
+		if (unlikely(ret))
+			return ret;
+		asm("":::"memory");
+		__put_user_asm(4[(u16 *)src], 4 + (u16 __user *)dst, ret, "w", "w", "ir", 2);
+		return ret;
+	case 16:
+		__put_user_asm(*(u64 *)src, (u64 __user *)dst, ret, "q", "", "er", 16);
+		if (unlikely(ret))
+			return ret;
+		asm("":::"memory");
+		__put_user_asm(1[(u64 *)src], 1 + (u64 __user *)dst, ret, "q", "", "er", 8);
+		return ret;
+	default:
+		return copy_user_generic((__force void *)dst, src, size);
+	}
+}
+
+/* Okay, here's __put_user_asm, from arch/x86/include/asm/uaccess.h  */
+#define __put_user_asm(x, addr, err, itype, rtype, ltype, errret)	\
+	asm volatile(ASM_STAC "\n"					\
+		     "1:	mov"itype" %"rtype"1,%2\n"		\
+		     "2: " ASM_CLAC "\n"				\
+		     ".section .fixup,\"ax\"\n"				\
+		     "3:	mov %3,%0\n"				\
+		     "	jmp 2b\n"					\
+		     ".previous\n"					\
+		     _ASM_EXTABLE(1b, 3b)				\
+		     : "=r"(err)					\
+		     : ltype(x), "m" (__m(addr)), "i" (errret), "0" (err))
+
+/* Searching around for ASM_STAC leads to arch/x86/include/asm/smap.h 
+ * Seems to have something to do with access controls. We find the following: 
+ */
+
+/* "Raw" instruction opcodes */
+#define __ASM_CLAC	.byte 0x0f,0x01,0xca
+#define __ASM_STAC	.byte 0x0f,0x01,0xcb
+
+#ifdef __ASSEMBLY__
+
+#include <asm/alternative-asm.h>
+
+#ifdef CONFIG_X86_SMAP
+
+#define ASM_CLAC							\
+	661: ASM_NOP3 ;							\
+	.pushsection .altinstr_replacement, "ax" ;			\
+	662: __ASM_CLAC ;						\
+	.popsection ;							\
+	.pushsection .altinstructions, "a" ;				\
+	altinstruction_entry 661b, 662b, X86_FEATURE_SMAP, 3, 3 ;	\
+	.popsection
+
+/* These __ASM_CLAC and __ASM_STAC are x86 opcodes for clearing and setting access controls: */
+
+// echo -en '\x0f\x01\xca' | ndisasm -
+// 00000000  0F01CA            clac
+
+// echo -en '\x0f\x01\xcb' | ndisasm -
+// 00000000  0F01CB            stac
+
+
+
+
+
+
+
