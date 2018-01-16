@@ -1,0 +1,10 @@
+#!/bin/bash
+
+make clean &&
+make &&
+if [[ $(lsmod | grep -c toplel) != "0" ]]; then sudo rmmod toplel; fi &&
+sudo dmesg -C &&
+sudo insmod ./toplel.ko &&
+# sudo modprobe -r toplel &&
+sudo rmmod toplel &&
+dmesg
