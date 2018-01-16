@@ -128,33 +128,34 @@ struct atkbd {
 };
 
 /* System-specific keymap fixup routine */
-static ssize_t atkbd_attr_show_helper(struct device *dev, char *buf, ssize_t (*handler)(struct atkbd *, char *));
-static ssize_t atkbd_attr_set_helper(struct device *dev, const char *buf, size_t count, ssize_t (*handler)(struct atkbd *, const char *, size_t));
+// static ssize_t atkbd_attr_show_helper(struct device *dev, char *buf, ssize_t (*handler)(struct atkbd *, char *));
+// static ssize_t atkbd_attr_set_helper(struct device *dev, const char *buf, size_t count, ssize_t (*handler)(struct atkbd *, const char *, size_t));
 
-#define ATKBD_DEFINE_ATTR(_name)						\
-static ssize_t atkbd_show_##_name(struct atkbd *, char *);			\
-static ssize_t atkbd_set_##_name(struct atkbd *, const char *, size_t);		\
-static ssize_t atkbd_do_show_##_name(struct device *d,				\
-				struct device_attribute *attr, char *b)		\
-{										\
-	return atkbd_attr_show_helper(d, b, atkbd_show_##_name);		\
-}										\
-static ssize_t atkbd_do_set_##_name(struct device *d,				\
-			struct device_attribute *attr, const char *b, size_t s)	\
-{										\
-	return atkbd_attr_set_helper(d, b, s, atkbd_set_##_name);		\
-}										\
-static struct device_attribute atkbd_attr_##_name =				\
-	__ATTR(_name, S_IWUSR | S_IRUGO, atkbd_do_show_##_name, atkbd_do_set_##_name);
+/*
+#define ATKBD_DEFINE_ATTR(_name)										\
+static ssize_t atkbd_show_##_name(struct atkbd *, char *);							\
+static ssize_t atkbd_set_##_name(struct atkbd *, const char *, size_t);						\
+static ssize_t atkbd_do_show_##_name(struct device *d, struct device_attribute *attr, char *b)			\
+{														\
+	return atkbd_attr_show_helper(d, b, atkbd_show_##_name);						\
+}														\
+static ssize_t atkbd_do_set_##_name(struct device *d, struct device_attribute *attr, const char *b, size_t s)	\
+{														\
+	return atkbd_attr_set_helper(d, b, s, atkbd_set_##_name);						\
+}														\
+static struct device_attribute atkbd_attr_##_name = __ATTR(_name, S_IWUSR | S_IRUGO, atkbd_do_show_##_name, atkbd_do_set_##_name);
+*/
 
-
+/*
 ATKBD_DEFINE_ATTR(extra);
 ATKBD_DEFINE_ATTR(force_release);
 ATKBD_DEFINE_ATTR(scroll);
 ATKBD_DEFINE_ATTR(set);
 ATKBD_DEFINE_ATTR(softrepeat);
 ATKBD_DEFINE_ATTR(softraw);
+*/
 
+/*
 #define ATKBD_DEFINE_RO_ATTR(_name)						\
 static ssize_t atkbd_show_##_name(struct atkbd *, char *);			\
 static ssize_t atkbd_do_show_##_name(struct device *d,				\
@@ -164,9 +165,11 @@ static ssize_t atkbd_do_show_##_name(struct device *d,				\
 }										\
 static struct device_attribute atkbd_attr_##_name =				\
 	__ATTR(_name, S_IRUGO, atkbd_do_show_##_name, NULL);
+*/
 
-ATKBD_DEFINE_RO_ATTR(err_count);
+//ATKBD_DEFINE_RO_ATTR(err_count);
 
+/*
 static struct attribute *atkbd_attributes[] = {
 	&atkbd_attr_extra.attr,
 	&atkbd_attr_force_release.attr,
@@ -177,10 +180,11 @@ static struct attribute *atkbd_attributes[] = {
 	&atkbd_attr_err_count.attr,
 	NULL
 };
+*/
 
-static struct attribute_group atkbd_attribute_group = {
-	.attrs	= atkbd_attributes,
-};
+// static struct attribute_group atkbd_attribute_group = {
+// 	.attrs	= atkbd_attributes,
+//};
 
 static const unsigned int xl_table[] = {
 	ATKBD_RET_BAT, ATKBD_RET_ERR, ATKBD_RET_ACK,
@@ -188,22 +192,7 @@ static const unsigned int xl_table[] = {
 };
 
 /* Checks if we should mangle the scancode to extract 'release' bit in translated mode. */
-static bool atkbd_need_xlate(unsigned long xl_bit, unsigned char code)
-{
-	int i;
-	printk("[*] In atkbd_need_xlate\n");
-
-	if (code == ATKBD_RET_EMUL0 || code == ATKBD_RET_EMUL1) {
-		return false;
-        }
-
-	for (i = 0; i < ARRAY_SIZE(xl_table); i++)
-		if (code == xl_table[i])
-			return test_bit(i, &xl_bit);
-
-	return true;
-}
-
+#define atkbd_need_xlate(code)  ((code == ATKBD_RET_EMUL0 || code == ATKBD_RET_EMUL1) ? false : true)
 
 /* atkbd_interrupt(). Here takes place processing of data received from the keyboard into events. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
@@ -231,14 +220,17 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 		if  (ps2_handle_response(&atkbd->ps2dev, data))
 			goto out;
 
-	if (!atkbd->enabled)
-		goto out;
+	// if (!atkbd->enabled) {
+	// 	goto out;
+        // }
 
+        /* Note: This is the signature of input_event. It may be being called incorrectly... */
+        /* void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value); */
 	input_event(dev, EV_MSC, MSC_RAW, code);
 
 	if (atkbd->translated) {
 
-		if (atkbd->emul || atkbd_need_xlate(atkbd->xl_bit, code)) {
+		if (atkbd->emul || atkbd_need_xlate(code)) {
 			atkbd->release = code >> 7;
 			code &= 0x7f;
 		}
@@ -338,7 +330,7 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	struct input_dev *input_dev;
         int j;
 
-	printk("[*] In atkbd_connect\n");
+	printk(KERN_DEBUG "[*] In atkbd_connect\n");
 
 	atkbd = kzalloc(sizeof(struct atkbd), GFP_KERNEL);
 	dev = input_allocate_device();
@@ -352,7 +344,6 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	case SERIO_8042_XL:
 		atkbd->translated = true;
 		/* Fall through */
-
 	case SERIO_8042:
 		if (serio->write)
 			atkbd->write = true;
@@ -402,7 +393,7 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
         /***************************/
         /* This was atkbd_set_keycode_table(atkbd); */
         /* The variables scancode and i are local to this block */
-	printk("[*] In atkbd_set_keycode_table\n");
+	printk(KERN_DEBUG "[*] In atkbd_set_keycode_table\n");
 
 	memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
 	bitmap_zero(atkbd->force_release_mask, ATKBD_KEYMAP_SIZE);
@@ -413,7 +404,6 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 		atkbd->keycode[i] = atkbd_set2_keycode[scancode];
 		atkbd->keycode[i | 0x80] = atkbd_set2_keycode[scancode | 0x80];
 	}
-
         /*************************/
         /* END SET KEYCODE TABLE */
         /*************************/
@@ -424,7 +414,7 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
         /* This was atkbd_set_device_attrs(atkbd); */
         /* The variables input_dev and j are local to this block */
         input_dev = atkbd->dev;
-	printk("[*] In atkbd_set_device_attrs\n");
+	printk(KERN_DEBUG "[*] In atkbd_set_device_attrs\n");
 
 	snprintf(atkbd->name, sizeof(atkbd->name), "AT %s Set %d keyboard", atkbd->translated ? "Translated" : "Raw", atkbd->set);
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
@@ -432,35 +422,64 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	input_dev->name = atkbd->name;
 	input_dev->phys = atkbd->phys;
 	input_dev->id.bustype = BUS_I8042;
-	input_dev->id.vendor = 0x0001;
-	input_dev->id.product = atkbd->translated ? 1 : atkbd->set;
-	input_dev->id.version = atkbd->id;
+	// input_dev->id.vendor = 0x0001;
+	// input_dev->id.product = atkbd->translated ? 1 : atkbd->set;
+	// input_dev->id.version = atkbd->id;
 	// input_dev->event = atkbd_event;
-	input_dev->dev.parent = &atkbd->ps2dev.serio->dev;
+	// input_dev->dev.parent = &atkbd->ps2dev.serio->dev;
 	input_set_drvdata(input_dev, atkbd);
-	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP) | BIT_MASK(EV_MSC);
-	input_dev->evbit[0] |= BIT_MASK(EV_LED);
-	input_dev->ledbit[0] = BIT_MASK(LED_NUML) | BIT_MASK(LED_CAPSL) | BIT_MASK(LED_SCROLLL);
+        input_dev->evbit[0]  = BIT_MASK(EV_KEY);
+	// input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP) | BIT_MASK(EV_MSC) | BIT_MASK(EV_LED);
+	// input_dev->ledbit[0] = BIT_MASK(LED_NUML) | BIT_MASK(LED_CAPSL) | BIT_MASK(LED_SCROLLL);
+	// input_dev->mscbit[0] = atkbd->softraw ? BIT_MASK(MSC_SCAN) : BIT_MASK(MSC_RAW) | BIT_MASK(MSC_SCAN);
 	input_dev->rep[REP_DELAY] = 250;
 	input_dev->rep[REP_PERIOD] = 33;
-	input_dev->mscbit[0] = atkbd->softraw ? BIT_MASK(MSC_SCAN) : BIT_MASK(MSC_RAW) | BIT_MASK(MSC_SCAN);
-	input_dev->keycode = atkbd->keycode;
+	// input_dev->keycode = atkbd->keycode;
 	input_dev->keycodesize = sizeof(unsigned short);
 	input_dev->keycodemax = ARRAY_SIZE(atkbd_set2_keycode);
 
+        /* This sets bits in input_dev->keybit until it's 0xfffffffffffffffe. 
+         * Let's see if we can get away with just setting it to that. */
+
+
+        /* From include/linux/input.h
+         * ==========================
+         * struct input_dev - represents an input device
+         * @name: name of the device
+         * @phys: physical path to the device in the system hierarchy
+         * @evbit: bitmap of types of events supported by the device (EV_KEY, EV_REL, etc.)
+         * @keybit: bitmap of keys/buttons this device has
+         */
+
+	/* This: printk'ing sizeof(input_dev->keybit) shows that
+         * input_dev->keybit is an array 96 bytes (768 bits) long. */
 	for (j = 0; j < ATKBD_KEYMAP_SIZE; j++) {
 		if (atkbd->keycode[j] != KEY_RESERVED &&
 		    atkbd->keycode[j] != ATKBD_KEY_NULL &&
-		    atkbd->keycode[j] < ATKBD_SPECIAL) {
+		    atkbd->keycode[j] <  ATKBD_SPECIAL) {
 			__set_bit(atkbd->keycode[j], input_dev->keybit);
 		}
 	}
+
+#define set_bit_example() ({					\
+        /* So *p should be 0b00011000 == 24, which it is */	\
+        unsigned long n = 0, *p = &n;				\
+        set_bit(4, p);						\
+        __set_bit(3, p);					\
+        printk(KERN_INFO"[*] set_bit example: *p = %lu\n", *p);	\
+})
+
+        set_bit_example();
+
+        /* Print some of the info we just set */
+        printk("[*] %s : dev->name == %s\n", __func__, dev->name);
+        printk("[*] %s : dev->phys == %s\n", __func__, dev->phys);
+
         /************************/
         /* END SET DEVICE ATTRS */
         /************************/
 
-
-	sysfs_create_group(&serio->dev.kobj, &atkbd_attribute_group);
+	// sysfs_create_group(&serio->dev.kobj, &atkbd_attribute_group);
 
 	atkbd->enabled = true;
 	if (serio->write) {
@@ -485,7 +504,7 @@ static void atkbd_disconnect(struct serio *serio)
 	struct atkbd *atkbd = serio_get_drvdata(serio);
 
 	printk("[*] In atkbd_disconnect\n");
-	sysfs_remove_group(&serio->dev.kobj, &atkbd_attribute_group);
+	// sysfs_remove_group(&serio->dev.kobj, &atkbd_attribute_group);
 	atkbd->enabled = false;
 	input_unregister_device(atkbd->dev);
 
@@ -509,12 +528,6 @@ static struct serio_device_id atkbd_serio_ids[] = {
 		.id	= SERIO_ANY,
 		.extra	= SERIO_ANY,
 	},
-	{
-		.type	= SERIO_RS232,
-		.proto	= SERIO_PS2SER,
-		.id	= SERIO_ANY,
-		.extra	= SERIO_ANY,
-	},
 	{ 0 }
 };
 
@@ -529,6 +542,7 @@ static struct serio_driver atkbd_drv = {
 	.disconnect	= atkbd_disconnect,
 };
 
+/*
 static ssize_t atkbd_attr_show_helper(struct device *dev, char *buf, ssize_t (*handler)(struct atkbd *, char *)){return 0;}
 static ssize_t atkbd_attr_set_helper(struct device *d, const char *b, size_t c, ssize_t (*handler)(struct atkbd *, const char *, size_t)){return 0;}
 static ssize_t atkbd_show_extra(struct atkbd *atkbd, char *buf){return 0;}
@@ -544,6 +558,7 @@ static ssize_t atkbd_set_softrepeat(struct atkbd *atkbd, const char *buf, size_t
 static ssize_t atkbd_show_softraw(struct atkbd *atkbd, char *buf){return 0;}
 static ssize_t atkbd_set_softraw(struct atkbd *atkbd, const char *buf, size_t count){return 0;}
 static ssize_t atkbd_show_err_count(struct atkbd *atkbd, char *buf){return 0;}
+*/
 
 static int __init atkbd_init(void)
 {

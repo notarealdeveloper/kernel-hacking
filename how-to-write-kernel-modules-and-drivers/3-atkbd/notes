@@ -1,5 +1,15 @@
 	/* Some changes I made */
 
+    /* Removed from atkbd_need_xlate */
+    /*
+	for (k = 0; k < ARRAY_SIZE(xl_table); k++)
+		if (code == xl_table[k]) {
+                	printk("[*] In %s, returning test_bit(%d, %p) == %d\n", __func__, k, &xl_bit, test_bit(k, &xl_bit) ? true : false);
+			return test_bit(k, &xl_bit);
+                }
+    */
+
+
 	/* Some of the things we have:
 	 * ===========================
 	 * char name[64];

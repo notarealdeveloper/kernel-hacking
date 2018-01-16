@@ -1,5 +1,7 @@
 obj-$(CONFIG_KEYBOARD_ATKBD)		+= atkbd.o
 
+# ccflags-y += -Werror
+
 default:
 	make -C /usr/src/linux M=${PWD} modules
 
