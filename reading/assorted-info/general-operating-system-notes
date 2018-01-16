@@ -1,0 +1,37 @@
+copy on write
+=============
+Cloning a process's virtual memory is rather tricky. A new set of vm_area_struct data structures must be generated together with their owning mm_struct data structure and the cloned process's page tables. None of the process's virtual memory is copied at this point. That would be a rather difficult and lengthy task for some of that virtual memory would be in physical memory, some in the executable image that the process is currently executing and possibly some would be in the swap file. Instead Linux uses a technique called "copy on write" which means that virtual memory will only be copied when one of the two processes tries to write to it. 
+
+Any virtual memory that is not written to, even if it can be, will be shared between the two processes without any harm occuring. The read only memory, for example the executable code, will always be shared. For "copy on write" to work, the writeable areas have their page table entries marked as read only and the vm_area_struct data structures describing them are marked as "copy on write." When one of the processes attempts to write to this virtual memory a page fault will occur. It is at this point that Linux will make a copy of the memory and fix up the two processes' page tables and virtual memory data structure.
+
+
+scheduler (kernel/sched.c, include/linux/sched.h)
+=================================================
+
+Scheduling Basics
+-----------------
+
+# priority: 
+The amount of time (in jiffies) that this process will run for when it is allowed to run. You can alter the priority of a process by means of system calls and the renice command.
+
+# counter: 
+This is the amount of time (in jiffies) that this process is allowed to run for. It is set to priority when the process is first run and is decremented each clock tick.
+
+# So when a process begins running, the kernel says, "Okay, counter = priority, and you're allowed to run for counter-many jiffies." (On my computer, a jiffy seems to be 1000 milliseconds, though I can't tell for sure). Each clock tick of running time (presumably each jiffy), the counter is decremented.
+
+# Process selection:
+The scheduler looks through the processes on the run queue looking for the most deserving process to run. If there are any real time processes (those with a real time scheduling policy) then those will get a higher weighting than ordinary processes. The weight for a normal process is its counter but for a real time process it is counter + 1000. This means that if there are any runnable real time processes in the system then these will always be run before any normal runnable processes. If several processes have the same priority, the one nearest the front of the run queue is chosen. The current process will get put onto the back of the run queue. 
+
+# Switching from one process to another:
+When the current process comes to be suspended, all of its machine state, including the program counter (PC) and all of the processor's registers, must be saved in the process's task_struct data structure. Then, all of the machine state for the new process must be loaded. This is a system dependent operation, no CPUs do this in quite the same way but there is usually some hardware assistance for this act.
+
+# This swapping of process context takes place at the end of the scheduler. The saved context for the previous process is, therefore, a snapshot of the hardware context of the system as it was for this process at the end of the scheduler.
+
+SMP and Scheduling
+==================
+
+# SMP = Symmetric multiprocessor. An SMP system is capable of evenly balancing work between the CPUs in the system.
+
+# Each will run the scheduler separately as its current process exhausts its time-slice or has to wait for a system resource. The first thing to notice about an SMP system is that there is not just one idle process in the system. In a single processor system the idle process is the first task in the task vector, in an SMP system there is one idle process per CPU, and you could have more than one idle CPU. Additionally there is one current process per CPU, so SMP systems must keep track of the current and idle processes for each processor.
+
+In an SMP system each process's task_struct contains the number of the processor that it is currently running on (processor) and its processor number of the last processor that it ran on (last processor). There is no reason why a process should not run on a different CPU each time it is selected to run but Linux can restrict a process to one or more processors in the system using the processor mask. If bit N is set, then this process can run on processor N.
