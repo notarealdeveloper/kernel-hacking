@@ -1,0 +1,118 @@
+#!/bin/bash
+
+#################################################
+### EARLY IDEAS THAT I PROBABLY SHOULDN'T USE ###
+#################################################
+
+### (1) Make an already-built kernel more understandable for learning purposes
+###  by removing any .c files that don't have a corresponding .o file.
+for f in $(find . -name "*.c"); do [[ -e "${f%.c}".o ]] || rm -v "$f"; done
+
+### (2) After the above, do this to remove any directories that have only a Makefile left.
+for f in $(find . -type d); do [[ "$(ls "$f" | grep -v Makefile | wc -l)" == "0" ]] && rm -rv "$f"; done
+
+# Fix what we broke
+cp -v {/usr/src/linux/,}kernel/bounds.c
+cp -v {/usr/src/linux/,}include/config/auto.conf
+cp -v {/usr/src/linux/,}usr/gen_init_cpio.c
+cp -v {/usr/src/linux/,}mm/percpu-vm.c
+cp -v {/usr/src/linux/,}lib/gen_crc32table.c
+cp -v {/usr/src/linux/,}lib/raid6/mktables.c
+cp -v {/usr/src/linux/,}scripts/basic/fixdep.c
+cp -v {/usr/src/linux/,}scripts/basic/bin2c.c
+cp -v {/usr/src/linux/,}scripts/mod/mk_elfconfig.c
+cp -v {/usr/src/linux/,}scripts/kallsyms.c
+cp -v {/usr/src/linux/,}scripts/pnmtologo.c
+cp -v {/usr/src/linux/,}scripts/conmakehash.c
+cp -v {/usr/src/linux/,}scripts/recordmcount.c
+cp -v {/usr/src/linux/,}scripts/sortextable.c
+cp -v {/usr/src/linux/,}arch/x86/tools/relocs.c
+cp -v {/usr/src/linux/,}arch/x86/kernel/asm-offsets.c
+cp -v {/usr/src/linux/,}arch/x86/kernel/asm-offsets_64.c
+cp -v {/usr/src/linux/,}arch/x86/kvm/mmu_audit.c
+cp -v {/usr/src/linux/,}arch/x86/vdso/vdso2c.c
+cp -v {/usr/src/linux/,}arch/x86/boot/mkcpustr.c
+cp -v {/usr/src/linux/,}arch/x86/boot/compressed/mkpiggy.c
+cp -v {/usr/src/linux/,}arch/x86/boot/tools/build.c
+cp -v {/usr/src/linux/,}sound/core/control_compat.c
+cp -v {/usr/src/linux/,}sound/core/hwdep_compat.c
+cp -v {/usr/src/linux/,}sound/pci/hda/thinkpad_helper.c
+cp -v {/usr/src/linux/,}sound/core/timer_compat.c
+cp -v {/usr/src/linux/,}sound/pci/hda/dell_wmi_helper.c
+cp -v {/usr/src/linux/,}sound/core/pcm_compat.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-dbg.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-timer.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-hub.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-sysfs.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-mem.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-q.c
+cp -v {/usr/src/linux/,}drivers/usb/host/ehci-sched.c
+cp -v {/usr/src/linux/,}drivers/usb/host/uhci-hub.c
+cp -v {/usr/src/linux/,}drivers/usb/host/uhci-q.c
+cp -v {/usr/src/linux/,}drivers/usb/host/uhci-debug.c
+cp -v {/usr/src/linux/,}drivers/usb/host/uhci-pci.c
+cp -v {/usr/src/linux/,}drivers/firmware/efi/libstub/efi-stub-helper.c
+
+### (3) Search for every single include in the entire source tree!
+
+# Dear future self: First run this to build-up our disk cache
+# (so our full kernel greps go quicker later) while you're derping
+# around re-reading this file to try to remember what the hell we
+# were doing back then, i.e. now.
+grep -r 'this string is not in the kernel' .
+
+# And grab all the includes
+grep -Er '^#[ ]?include.*' . > /tmp/all-includes
+
+# Then search the kernel tree for all .h files that are never included by anything else. Kill 'em.
+for f in $(find -name "*.h"); do [[ $(grep -c "$(basename "$f")" /tmp/all-includes) == 0 ]] && rm -rv "$f"; done
+
+# Fix what we broke
+cp -v {/usr/src/linux/,}include/linux/compiler-gcc4.h
+cp -v {/usr/src/linux/,}include/config/hz.h
+cp -v {/usr/src/linux/,}lib/zlib_inflate/inffixed.h
+# The usb tree must be doing some *weird* shit. Like 15 files in there broke from the
+# commands above and only 3 other files in the whole kernel tree complained in the same way!
+cp -v /usr/src/linux/drivers/usb/storage/unusual*.h drivers/usb/storage/
+
+### (4) Next, you can remove everything in arch/ that isn't x86, x86_64, or Kconfig
+
+### (5) We can also remove everything in firmware/ that isn't the Makefile or our iwlwifi-thingy.S
+
+### (6) At some point during all this insanity we broke make menuconfig. Let's fix it.
+# This seems to be all we need to do :D
+cp -rv /usr/src/linux/scripts/kconfig/* scripts/kconfig/
+
+### (7-N) DUDE! Add commands in this script that run through the drivers tree and remove things you don't need.
+### You actually know how to do this now in a way that doesn't break the kernel. It's surprisingly easy!
+
+# Helpful for removing lots of driver trees at once.
+# When removing ~5 trees at once, this usually breaks ~1.
+# However, we can easily undo the change, so this is a net win.
+# We first have to pick a bunch of driver trees we don't think we need,
+# and copy them into some other folder. In this case, that folder is
+# located at /usr/src/linux/REMOVETEST/
+#
+# for f in /usr/src/linux/REMOVETEST/*; do rmtest $(basename "$f"); done
+# for f in /usr/src/linux/REMOVETEST/*; do rmtree $(basename "$f"); done
+
+
+### Some additional things I had to do for some driver subtrees
+# For eisa and rapidio
+# sed -i 's@source "drivers/eisa/Kconfig"@#&@g'    arch/x86/Kconfig
+# sed -i 's@source "drivers/rapidio/Kconfig"@#&@g' arch/x86/Kconfig
+
+
+# This command puts all the "essentially empty" directories from net/
+# into our REMOVETEST folder. Execute this from within the net/ subtree.
+# for f in *; do [[ -d "$f" ]] && [[ $(ls "$f" | grep '\.c' | wc -l) == 0 ]] && mv -v "$f" ../REMOVETEST/; done
+#
+# After running the above, remember to run:
+for f in /usr/src/linux/REMOVETEST/*; do rmtest $(basename "$f"); done
+for f in /usr/src/linux/REMOVETEST/*; do rmtree $(basename "$f"); done
+
+### Some additional things I had to do for some net subtrees
+sed -i 's@source "net/sunrpc/Kconfig"@#&@g'     fs/Kconfig
+
+### Okay, we have a better way of doing all this now.
+### See the other files named kernel-prune.*

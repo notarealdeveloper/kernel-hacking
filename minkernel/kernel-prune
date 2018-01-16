@@ -1,0 +1,734 @@
+#!/bin/bash
+
+
+rmtest () {
+    # A test to run before we remove an entire sub-tree ;)
+    # Feed this function the name of the subtree to test for removal
+    [[ -z "$1" ]] && echo "Usage: rmtest <subtree-name>" && exit 1
+    f="$1"
+
+    if [[ $(cat Makefile  | grep -c "[ \t]$f"/) != 0 ]]; then
+        echo "Makefile:"
+        grep "[ \t]$f"/ Makefile | sort | uniq | while read -r line; do 
+            sed "s@${line}@#&@g" Makefile | grep "$line";
+        done
+    else
+        echo "Makefile: Name not found."
+    fi
+
+    if [[ $(cat Kconfig  | grep -c "/${f}/") != 0 ]]; then
+        echo "Kconfig:"
+        grep "/${f}/" Kconfig | sort | uniq | while read -r line; do 
+            sed "s@${line}@#&@g" Kconfig | grep "$line";
+        done
+    else
+        echo "Kconfig: Name not found."
+    fi
+    echo
+}
+
+
+rmtree () {
+    # Remove refs to a subtree from its parent tree's Kconfig & Makefile
+    # Feed this function the name of the subtree to test for removal
+    [[ -z "$1" ]] && echo "Usage: rmtree <subtree-name>" && exit 1
+    f="$1"
+
+    if [[ $(cat Makefile  | grep -c "$f"/) != 0 ]]; then
+        grep "[ \t]$f"/ Makefile | sort | uniq | while read -r line; do 
+            sed -i "s@${line}@#&@g" Makefile;
+        done
+        echo "New Makefile:"
+        cat Makefile | grep "[ \t]$f"/
+    else
+        echo "Makefile: Nothing to do."
+    fi
+
+    if [[ $(cat Kconfig  | grep -c "/${f}/") != 0 ]]; then
+        grep "/${f}/" Kconfig | sort | uniq | while read -r line; do 
+            sed -i "s@${line}@#&@g" Kconfig;
+        done
+        echo "New Kconfig:"
+        cat Kconfig | grep "/${f}/"
+    else
+        echo "Kconfig: Nothing to do."
+    fi
+    echo
+}
+
+test_make_clean () {
+    cd .. && cp -rv "$ksrc"{,.test} && cd "$ksrc".test && pwd &&
+    make clean &&
+    cd .. && rm -rfv "$ksrc".test && cd "$ksrc" && pwd
+}
+
+
+# I don't actually use this, but it might be useful in the future
+get_configs () {
+    # Accepts a Kconfig as input
+    [[ -z "$1" ]] && echo "Usage: funcname <kconfig>" && return
+    grep -E '^config ' "$1" | cut -d' ' -f2 \
+    | while read -r line; do
+            grep "$line" "$ksrc"/.config | grep -v '^#'; done
+}
+
+# Make sure you're in the kernel src root directory
+ksrc="$(pwd -P)"
+cd "$ksrc"
+cp -rv drivers/ drivers.bak
+
+cp -v /usr/src/config-min "$ksrc"/.config
+sed -i "s@$(grep '.*CONFIG_LOCALVERSION=.*' .config)@CONFIG_LOCALVERSION=\"-MINKERNEL\"@" .config
+
+# Clean out the root of the source tree
+# =====================================
+rm -v COPYING CREDITS MAINTAINERS REPORTING-BUGS
+
+# Clean out the Documentation tree, we have other kernel trees for that
+# =====================================================================
+# rm -rv Documentation      # Oops! This fucks some things up. Add it soon.
+
+# Clean out the arch tree
+# =======================
+for f in $(ls arch/ | grep -Ev 'x86|Kconfig'); do rm -rv arch/"$f"; done
+
+# Make sure it builds
+make -j8
+
+# Clean out the drivers tree
+# ==========================
+removed_drivers=(
+    accessibility amba atm auxdisplay bcma bluetooth bus connector dca 
+    devfreq edac eisa extcon firewire fmc hsi hv hwspinlock ide iio 
+    infiniband ipack macintosh mailbox mcb memstick message mmc mtd ntb 
+    of oprofile parisc phy pps ps3 ptp pwm rapidio regulator remoteproc 
+    rpmsg sbus sh sn soc spmi ssb staging thunderbolt uio vfio virt 
+    virtio vlynq vme w1 zorro
+)
+pushd drivers
+for f in "${removed_drivers[@]}"; do rmtest "$f"; done
+for f in "${removed_drivers[@]}"; do rmtree "$f"; done
+for f in "${removed_drivers[@]}"; do rm -rv "$f"; done
+popd
+# Deal with some quirks
+sed -i 's@source "drivers/eisa/Kconfig"@#&@g'       arch/x86/Kconfig
+sed -i 's@source "drivers/rapidio/Kconfig"@#&@g'    arch/x86/Kconfig
+sed -i 's@source "drivers/bluetooth/Kconfig"@#&@g'  net/bluetooth/Kconfig
+sed -i 's@source "drivers/atm/Kconfig"@#&@g'        drivers/net/Kconfig
+make -j8
+
+# Fix make clean (only need to modify one file)
+sed -i -r 's@.*arch/[^(x86)].*@@g' fs/hostfs/Makefile
+test_make_clean
+
+# Clean out the firmware tree
+# ===========================
+removed_firmware=(
+    3com acenic adaptec advansys atmsar11.HEX av7110 bnx2 bnx2x 
+    built-in.o cis cpia2 cxgb3 dsp56k e100 edgeport emi26 emi62 ess 
+    ihex2fw.c kaweth keyspan keyspan_pda korg matrox modules.builtin 
+    modules.order mts_cdma.fw.ihex mts_edge.fw.ihex mts_gsm.fw.ihex 
+    myricom ositech qlogic r128 radeon sb16 sun tehuti ti_3410.fw.ihex 
+    ti_5052.fw.ihex tigon ttusb-budget vicam WHENCE whiteheat.HEX 
+    whiteheat_loader_debug.HEX whiteheat_loader.HEX yam yamaha
+)
+pushd firmware &&
+for f in "${removed_firmware[@]}"; do rm -rv "$f"; done &&
+popd &&
+make -j8
+test_make_clean
+
+# Clean out the sound tree
+# ========================
+pushd sound
+removed_sound=(aoa arm atmel firewire i2c isa mips sh 
+               ppc sparc parisc synth)
+for f in "${removed_sound[@]}"; do rm -rv "$f"; done
+rmtree aoa  # This needs to be before the next command
+for f in "${removed_sound[@]}"; do sed -i s@"${f}/"@@g Makefile; done
+for f in "${removed_sound[@]}"; do 
+    sed -i "s@source \"sound/${f}/Kconfig\"@#&@g" Kconfig; 
+done
+popd
+make -j8
+test_make_clean
+
+
+# Clean out the fs tree
+# =====================
+# Note: We can also remove xfs, but some file in the kernel/ subtree 
+# seems to use one of the headers from it. Sloppy bastards ;)
+pushd fs
+removed_fs=(9p adfs affs afs befs bfs hfs hfsplus minix reiserfs
+            qnx4 openpromfs jfs jffs2 hugetlbfs isofs hpfs ufs sysv
+            cramfs nilfs2 ncpfs freevxfs ceph btrfs hppfs ubifs
+            ntfs ocfs2 omfs squashfs qnx6 efivarfs ecryptfs nfs nfsd
+            romfs overlayfs efs configfs dlm gfs2 fat f2fs hostfs)
+for f in "${removed_fs[@]}"; do rmtest "$f"; done
+for f in "${removed_fs[@]}"; do rmtree "$f"; done
+for f in "${removed_fs[@]}"; do rm -rv "$f"; done
+popd
+make -j8
+test_make_clean     # Still works!
+
+# 10/27/2014: Successfully booted kernel with all the changes above!
+
+
+
+#########################################################
+### Let's try for the general approach we began with, ###
+### which failed in odd parts of the kernel, but may  ###
+### prove helpful in the majority of the kernel tree. ###
+#########################################################
+
+islonely () {
+    [[ -z "$1" ]] && echo "Usage: lonelyfile <file>" && return 1;
+    f="$1"
+    if [[ ("$f" == *.c) && (-f "$f") && (! -e "${f%.c}.o") ]]; then
+        return 0;
+    else
+        return 1;
+    fi
+}
+
+# Get all lonely .c files below cwd
+getlonely () {
+    for f in $(find -type f); do
+        islonely "$f" && echo "$f"
+    done
+}
+
+# Remove all lonely .c files in a tree
+rmlonely () {
+    for f in $(find -type f); do
+        islonely "$f" && rm -v "$f"
+    done
+}
+
+
+##################################
+### RMLONELY: THE DRIVERS TREE ###
+##################################
+pushd drivers
+getlonely
+rmlonely
+popd
+
+# Alright, now we have to deal with some special cases.
+# These are places where some goof #include'd a .c file
+# which prevents the rmlonely approach from working in general.
+cp -v drivers{.bak,}/usb/host/ehci-dbg.c
+cp -v drivers{.bak,}/usb/host/uhci-debug.c
+cp -v drivers{.bak,}/usb/host/ehci-timer.c
+cp -v drivers{.bak,}/usb/host/uhci-q.c
+cp -v drivers{.bak,}/usb/host/ehci-hub.c
+cp -v drivers{.bak,}/usb/host/uhci-hub.c
+cp -v drivers{.bak,}/usb/host/ehci-mem.c
+cp -v drivers{.bak,}/usb/host/uhci-pci.c
+cp -v drivers{.bak,}/usb/host/ehci-q.c
+cp -v drivers{.bak,}/usb/host/ehci-sched.c
+cp -v drivers{.bak,}/usb/host/ehci-sysfs.c
+cp -v drivers{.bak,}/firmware/efi/libstub/efi-stub-helper.c
+
+make -j8                # It works!
+test_make_clean
+
+
+#################################
+### RMLONELY: THE CRYPTO TREE ###
+#################################
+tree=crypto
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+##############################
+### RMLONELY: THE IPC TREE ###
+##############################
+tree=ipc
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+################################
+### RMLONELY: THE SOUND TREE ###
+################################
+tree=sound
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+#################################
+### RMLONELY: THE KERNEL TREE ###
+#################################
+tree=kernel
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+# Quirks
+cp -v kernel{.bak,}/bounds.c
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+##############################
+### RMLONELY: THE NET TREE ###
+##############################
+tree=net
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+##############################
+### RMLONELY: THE LIB TREE ###
+##############################
+tree=lib
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+# Quirks
+cp -v lib{.bak,}/gen_crc32table.c
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+###############################
+### RMLONELY: THE ARCH TREE ###
+###############################
+tree=arch
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+# Quirks
+cp -v arch{.bak,}/x86/tools/relocs.c
+cp -v arch{.bak,}/x86/kernel/asm-offsets.c
+cp -v arch{.bak,}/x86/kernel/asm-offsets_64.c
+cp -v arch{.bak,}/x86/vdso/vdso2c.c
+cp -v arch{.bak,}/x86/boot/mkcpustr.c
+cp -v arch{.bak,}/x86/boot/tools/build.c
+cp -v arch{.bak,}/x86/boot/compressed/mkpiggy.c
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+#############################
+### RMLONELY: THE FS TREE ###
+#############################
+tree=fs
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+#############################
+### RMLONELY: THE MM TREE ###
+#############################
+tree=mm
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+# Quirks
+cp -v mm{.bak,}/percpu-vm.c
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+###################################
+### RMLONELY: THE SECURITY TREE ###
+###################################
+tree=security
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+cd security &&
+# cat Makefile | grep '\.o' > Makefile.new && mv Makefile.new Makefile
+rm -rv selinux/ tomoyo/ yama/ smack/ keys/ integrity/ apparmor/ &&
+sed -i 's@.*source.*security.*Kconfig@#&@' Kconfig &&
+cd ..
+
+
+################################
+### RMLONELY: THE BLOCK TREE ###
+################################
+tree=block
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+###############################
+### RMLONELY: THE VIRT TREE ###
+###############################
+tree=virt
+cp -rv "$tree"{,.bak}
+pushd "$tree"
+getlonely
+rmlonely
+popd
+make -j8
+test_make_clean
+rm -rv "$tree".bak
+
+
+#######################################
+### REMOVING THE FIRMWARE DIRECTORY ###
+#######################################
+mv -v firmware{,.bak}
+sed -i 's@firmware/@@' Makefile
+sed -i 's@.*Makefile.fwinst@#&@' Makefile
+
+############################################
+### REMOVING THE DOCUMENTATION DIRECTORY ###
+############################################
+mv -v Documentation{,.bak}
+sed -i -e 's@Documentation samples@samples@' \
+       -e 's@arch Documentation include@arch include@' \
+       Makefile
+
+####################################
+### REMOVING THE SOUND DIRECTORY ###
+####################################
+mv -v sound{,.bak}
+sed -i 's@.*sound/Kconfig.*@#&@' drivers/Kconfig
+
+######################################
+### REMOVING THE SAMPLES DIRECTORY ###
+######################################
+mv -v samples{,.bak}
+sed -i -e 's@samples)@)@' \
+       -e 's@include samples scripts@include scripts@' \
+        Makefile
+
+###################################
+### REMOVING THE VIRT DIRECTORY ###
+###################################
+mv -v virt{,.bak}
+sed -i 's@.*virt/kvm/Kconfig.*@#&@' arch/x86/kvm/Kconfig
+
+
+
+#########################
+### REMOVING FS CRUFT ###
+#########################
+cp -rv fs{,.bak}
+removed_fs=(
+    exofs cifs cachefiles coda nfs_common jbd fscache fuse logfs 
+    lockd udf ext2 ext3
+)
+
+pushd fs
+for f in "${removed_fs[@]}"; do rmtest "$f"; done
+for f in "${removed_fs[@]}"; do rmtree "$f"; done
+for f in "${removed_fs[@]}"; do rm -rv "$f"; done
+popd
+
+
+#############################
+### REMOVING CRYPTO CRUFT ###
+#############################
+cp -rv crypto{,.bak}
+removed_crypto=(
+    asymmetric_keys async_tx
+)
+
+pushd crypto
+for f in "${removed_crypto[@]}"; do rmtest "$f"; done
+for f in "${removed_crypto[@]}"; do rmtree "$f"; done
+for f in "${removed_crypto[@]}"; do rm -rv "$f"; done
+popd
+
+
+########################################
+### REMOVING EVEN MORE DRIVER CRUFT! ###
+########################################
+cp -rv drivers{,.bak}
+removed_drivers=(
+    xen s390 cdrom clk dma gpio hsi hwmon idle iommu irqchip isdn
+    lguest md pcmcia pinctrl powercap reset sfi spi target vhost watchdog
+    block misc nfc media mfd
+)
+
+pushd drivers
+for f in "${removed_drivers[@]}"; do rmtest "$f"; done
+for f in "${removed_drivers[@]}"; do rmtree "$f"; done
+for f in "${removed_drivers[@]}"; do rm -rv "$f"; done
+popd
+# Restore some things to the Makefile that our hammer approach killed.
+echo 'obj-y += base/' >> Makefile  # Killed by rmtree for block misc etc.
+echo 'obj-y += i2c/'  >> Makefile  # Killed by rmtree for media.
+
+# Mainframes are shitting on the build. Fix it.
+sed -i 's@.*drivers/s390/block/Kconfig.*@#&@' drivers/block/Kconfig
+sed -i 's@.*drivers/s390/net/Kconfig.*@#&@'   drivers/net/Kconfig
+sed -i 's@.*drivers/s390/char/Kconfig.*@#&@'  drivers/char/Kconfig
+
+# More
+sed -i 's@.*drivers/vhost/Kconfig.*@#&@' drivers/net/caif/Kconfig
+sed -i 's@.*drivers/nfc/Kconfig.*@#&@'   net/nfc/Kconfig
+
+# Not sure I need these lines. See if it works without them.
+sed -i 's@.*drivers/sfi/Kconfig.*@#&@'    arch/x86/Kconfig
+sed -i 's@.*drivers/idle/Kconfig.*@#&@'   arch/x86/Kconfig
+sed -i 's@.*drivers/pcmcia/Kconfig.*@#&@' arch/x86/Kconfig
+sed -i 's@.*drivers/vhost/Kconfig.*@#&@'  arch/x86/kvm/Kconfig
+sed -i 's@.*drivers/lguest/Kconfig.*@#&@' arch/x86/kvm/Kconfig
+
+
+# Silly but helpful way to find all of the directories with no .c 
+# files in them. These are good candidates for removal!
+for dir in $(find . -type d | grep -v '/.*/' | grep /); do 
+    printf "${dir} " && find "$dir" -name "*.c" | wc -l; 
+done | sort -n -k 2
+
+# This gives us all the directories with *no* c files, all nicely
+# formatted for easy copy-pasting into a bash array
+for dir in $(find . -type d | grep -v '/.*/' | grep /); do
+    printf "${dir} " && find "$dir" -name "*.c" | wc -l;
+done | sort -n -k 2 | grep ' 0$' | cut -d' ' -f1 \
+     | sed 's@./@@' | sed -z 's@\n@ @g'
+############################################################
+
+# This is a bit sketchy, and not at all a general strategy,
+# but it has worked reasonably well in the two cases below.
+
+#######################
+### ANOTHER BIG GUN ###
+#######################
+
+rm_small_trees () {
+    [[ -z "$1" ]] && echo "Usage: rm_small_tree <number>" && return 1;
+    n="$1"
+    for d in *; do
+        [[ -d "$d" ]] || continue
+        numfiles=$(find "$d" -type f | wc -l)
+        if [[ $((numfiles <= n)) == 1 ]]; then
+            echo "=========================="
+            echo "Subtree: ${d} (${numfiles} files)"
+            rmtest "$d"
+            echo "Remove this subtree? [Y/n]"
+            read RMTREE
+            if [[ ("${RMTREE}" != 'n') && ("${RMTREE}" != 'N') ]]; then
+                rmtree "$d"
+                rm -rv "$d"
+            fi
+        fi
+    done
+}
+
+# Remove directories in drivers/ with (N <= 8) files (when built)
+pushd drivers
+rm_small_trees 8
+popd
+make -j8
+test_make_clean     # Still works!
+
+
+# Remove directories in net/ with (N <= 5) files when built
+pushd net
+rm_small_trees 5
+popd
+make -j8
+test_make_clean     # Still works!
+
+
+#####################################################################
+
+### VERY EXPERIMENTAL STUFF ###
+
+isemptyish () {
+    [[ -z "$1" ]] && echo "Usage: isemptyish <dir>" && return 1;
+    d="$1"
+    if [[ (-d "$d") && ($(find "$d" | grep -c '.*\.c$') == 0) ]]; then
+        return 0;
+    else
+        return 1;
+    fi
+}
+
+getemptyish_thunderdome () {
+    for d in $(find -type d); do isemptyish "$d" && echo "$d"; done
+}
+
+getemptyish () {
+    for d in $(find -type d | sed  's@^[.]/@@'); do 
+        isemptyish "$d" || continue
+        [[ $(grep -c "$d" $(readlink -f "$d")/Makefile 2>/dev/null) == 0 ]] &&
+        [[ $(grep -c "$d" $(readlink -f "$d")/Kconfig  2>/dev/null) == 0 ]] &&
+        echo "$d"
+    done
+}
+
+rmemptyish_test () {
+    all_local_kconfigs=($(find "$ksrc" -type f -name Kconfig))
+    all_other_kconfigs=($(find "$ksrc" -type f -name Kconfig | grep -v "$(pwd)"))
+    basedir=${PWD##*/}
+    rm -f .referenced
+    for kconfig in ${all_other_kconfigs[@]}; do
+        grep "^[^#]*source.*\"${basedir}/.*Kconfig\"" "$kconfig" | sed 's@[\t ]*@@' >> .referenced
+    done
+
+    for d in $(find -type d | sed  's@^[.]/@@' | sort | uniq); do
+        isemptyish "$d" || continue
+        parent=$(dirname "$d")
+        echo "Candidate: (${basedir})/${d}"
+        if [[ -e "${parent}/Makefile" ]]; then
+            sed -r "s@.*[+][=][ \t]+$d/.*@#RM#&@g" "${parent}/Makefile" | grep -E "#RM#.*[+]=.*[\t ]+$d/";
+        fi
+        if [[ -e "${parent}/Kconfig" ]]; then
+            sed -r "s@.*/$d/.*@#RM#&@g" "${parent}/Kconfig" | grep -E "#RM#.*/${d}/.*Kconfig";
+        fi
+
+        # Check if this directory is sourced by any Kconfig outside the current sub-tree.
+        # If it is, then check all of the Kconfigs for those references, just to be safe.
+        if [[ $(grep -c "${basedir}/${d}" .referenced) > 0 ]]; then
+            echo 'WE GOT A HOT ONE!'
+            for kconfig in ${all_other_kconfigs[@]}; do
+                sed -r "s@.*source \"drivers/${d}.*@#RM# &@" "$kconfig" | grep "source \"drivers/${d}.*"
+            done
+        fi
+        echo '===================='
+    done
+}
+
+
+rmemptyish () {
+    all_local_kconfigs=($(find "$ksrc" -type f -name Kconfig))
+    all_other_kconfigs=($(find "$ksrc" -type f -name Kconfig | grep -Ev "$(pwd)|\.bak"))
+    basedir=${PWD##*/}
+    rm -f .referenced
+    for kconfig in ${all_other_kconfigs[@]}; do
+        grep "^[^#]*source.*\"${basedir}/.*Kconfig\"" "$kconfig" | sed 's@[\t ]*@@' >> .referenced
+    done
+
+    for d in $(find -type d | sed  's@^[.]/@@' | sort | uniq); do
+        isemptyish "$d" || continue
+        parent=$(dirname "$d")
+        echo "Removing locally: (${basedir})/${d}"
+        if [[ -e "${parent}/Makefile" ]]; then sed -i -r "s@.*[+][=][ \t]+$d/.*@#RM#&@g" "${parent}/Makefile"; fi
+        if [[ -e "${parent}/Kconfig" ]];  then sed -i -r "s@.*/$d/.*@#RM#&@g"            "${parent}/Kconfig";  fi
+
+        # Check if this directory is sourced by any Kconfig outside the current sub-tree.
+        # If it is, then check all of the Kconfigs for those references, just to be safe.
+        if [[ $(grep -c "${basedir}/${d}" .referenced) > 0 ]]; then
+            echo 'WE GOT A HOT ONE!'
+            for kconfig in ${all_other_kconfigs[@]}; do
+                sed -i -r "s@.*source \"drivers/${d}.*@#RM# &@" "$kconfig"
+            done
+        fi
+        rm -rv "$d"
+        echo '===================='
+    done
+}
+
+
+
+# Back up all the directories that this changes before running this!
+rmemptyish_old () {
+    for d in $(find -type d | sed  's@^[.]/@@' | sort | uniq); do
+        isemptyish "$d" || continue
+        parent=$(dirname "$d")
+        if [[ -e "${parent}/Makefile" ]]; then sed -i -r "s@.*[+][=][ \t]+$d/.*@#RM#&@g" "${parent}/Makefile"; fi
+        if [[ -e "${parent}/Kconfig" ]];  then sed -i -r "s@.*/$d/.*@#RM#&@g"            "${parent}/Kconfig";  fi
+        for subdir in {arch/x86,net,crypto}; do
+            sed -i -r "s@.*source.*/$d/.*@#RM#&@g" "${ksrc}/${subdir}/Kconfig"
+        done
+        # sed -i -r "s@.*source.*/$d/.*@#RM#&@g" "${ksrc}/arch/x86/Kconfig"
+        rm -rv "$d"
+    done
+}
+
+
+cd drivers/
+rmemptyish_test
+rmemptyish
+
+# This will inevitably break the world, so we need to do some manual fix-up afterwards.
+cd "$ksrc"
+
+__get_next_error_1 () {
+    complaint=$(make -j8 |& grep 'can.t open file')
+    whiner=$(echo "$complaint" | grep -Po '^[^:]*')
+    gonefile=$(echo "$complaint" | grep -Po '(?<=").*(?=")')
+    echo "complaint = $complaint"
+    echo "whiner    = $whiner"
+    echo "gonefile  = $gonefile"
+    cat "$whiner"                                    | grep "$gonefile"
+    sed -r "s@source.*${gonefile}@#RM#&@g" "$whiner" | grep "$gonefile"
+    echo "Fix this error? [Y/n]"
+    read FIXIT
+    if [[ "${FIXIT}" != 'n' ]]; then
+        echo "Fixing error"
+        sed -i -r "s@source.*${gonefile}@#RM#&@g" "$whiner"
+    fi
+}
+
+# First: make a backup of the entire kernel dir with .bak at the end
+__get_next_error_2 () {
+    kbackup_dir="$(pwd -P)".bak
+    complaint=$(make -j8 |& grep 'No such file or directory' |& head -n 1)
+    whiner=$(echo "$complaint" | grep -Po '^[^:]*')
+    gonefile=$(echo "$complaint" | grep -Po '(?<= ).*(?=:)')
+    
+    echo "complaint = $complaint"
+    echo "whiner    = $whiner"
+    echo "gonefile  = $gonefile"
+
+    mkdir -pv $(dirname "$gonefile")
+    cp -v {"$kbackup_dir"/,}"$gonefile"
+}
+
+
+
+
