@@ -1,0 +1,22 @@
+#!/bin/bash
+
+module=procfs
+procfile=/proc/my-proc-file
+
+sudo true
+make clean &&
+make -j8 &&
+if [[ $(lsmod | grep -c "$module") != "0" ]]; then sudo rmmod "$module"; fi &&
+sudo dmesg -C &&
+sudo insmod "$module".ko &&
+echo &&
+echo 'hey babycakes' > "$procfile" &&
+cat "$procfile" &&
+echo 'one two three holy fucking shit oh yeah this is a long string' > "$procfile" &&
+cat "$procfile" &&
+echo 'boops' > "$procfile" &&
+cat "$procfile" &&
+echo &&
+sudo rmmod  "$module".ko &&
+make clean &&
+dmesg
