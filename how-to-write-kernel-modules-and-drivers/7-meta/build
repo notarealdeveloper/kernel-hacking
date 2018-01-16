@@ -1,0 +1,20 @@
+#!/bin/bash
+
+module="$(cat Makefile | grep obj-m | grep -Po '[^\s]*(?=\.o)')"  # currently, this is "waffles"
+sysfsd="/sys/kernel/kobject-example"
+
+test_sysfs () {
+	echo 69 | sudo tee "$sysfsd"/foo &>/dev/null
+	echo -e "foo\n---" && for i in {1..5}; do cat "$sysfsd"/foo; done
+}
+
+sudo true
+make cleanall &&
+make -j8 &&
+if [[ $(lsmod | grep -c "$module") != "0" ]]; then sudo rmmod "$module"; fi &&
+sudo dmesg -C &&
+sudo insmod ./"$module".ko &&
+test_sysfs && 
+sudo rmmod "$module".ko &&
+make cleanall &&
+dmesg
