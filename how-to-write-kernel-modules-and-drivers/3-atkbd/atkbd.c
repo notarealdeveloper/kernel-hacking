@@ -52,7 +52,8 @@ static const unsigned short atkbd_unxlate_table[128] = {
 
 #define ATKBD_CMD_ENABLE	0x00f4
 #define ATKBD_WEIRD_KEY		0xe0
-#define log()			printk(KERN_DEBUG "[*] %s: Entered\n", __func__)
+#define not_yet_initialized(k)	(k->ps2dev.flags & PS2_FLAG_ACK)
+#define log()			printk(KERN_DEBUG "[*] %s: entered\n", __func__)
 
 struct atkbd {
 	struct ps2dev ps2dev;
@@ -72,20 +73,18 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsi
 
 	printk(KERN_DEBUG "[*] %s: data == 0x%02x\n", __func__, data);
 
-	// if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK) && ps2_handle_ack(&atkbd->ps2dev, data)) {
-	// if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK)) {
-	if (atkbd->ps2dev.flags & PS2_FLAG_ACK) {
+	if (not_yet_initialized(atkbd)) {
 		ps2_handle_ack(&atkbd->ps2dev, data);
 		printk(KERN_DEBUG "[*] %s: atkbd not initialized yet. fucking off.\n", __func__);
 		return IRQ_HANDLED;
 	}
 
-	/* If we've got a fucked-up key (brightness, volume, etc.) then don't 
-	 * actually do anything yet! Just set atkbd->weirdkey to 1, and do the 
- 	 * actual processing when the key is *released*! When we look-up 
+	/* If we've got a weird key (brightness, volume, etc.) then don't
+	 * actually do anything yet! Just set atkbd->weirdkey to 1, and do the
+ 	 * actual processing when the key is *released*! When we look-up
 	 * the keycode, check whether atkbd->weirdkey is set. If it is,
  	 * OR the keycode with 0x80 == 128 before we look it up.
-	 * Note: My pause/break key can generate 0xe1, but all other 
+	 * Note: My pause/break key can generate 0xe1, but all other
 	 * weird keys generate 0xe0. Who needs pause/break anyway? */
 	if (data == ATKBD_WEIRD_KEY) {
 		atkbd->weirdkey = 1;
@@ -123,16 +122,16 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	serio_open(serio, drv);
 
         /* BEGIN ATKBD PROBE */
-	printk(KERN_DEBUG "[*] %s: This causes a keyboard interrupt\n", __func__);
+	printk(KERN_DEBUG "[*] %s: this will cause a keyboard interrupt\n", __func__);
 	if (ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_ENABLE)) {
 		printk(KERN_INFO "[*] %s: ps2_command returned nonzero. Bailing out!\n", __func__);
 		err = -ENODEV;
                 goto fail;
 	}
-	printk(KERN_DEBUG "[*] %s: Returning from keyboard interrupt\n", __func__);
+	printk(KERN_DEBUG "[*] %s: returning from keyboard interrupt\n", __func__);
 
         /* BEGIN SET KEYCODE TABLE */
-	printk(KERN_DEBUG "[*] %s: In former atkbd_set_keycode_table\n", __func__);
+	printk(KERN_DEBUG "[*] %s: in former atkbd_set_keycode_table\n", __func__);
 	for (i = 0; i < 128; i++) {
 		scancode 		= atkbd_unxlate_table[i];
 		atkbd->keycode[i] 	= atkbd_keycode[scancode];
@@ -140,7 +139,7 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	}
 
         /* BEGIN SET DEVICE ATTRS */
-	printk(KERN_DEBUG "[*] %s: In former atkbd_set_device_attrs\n", __func__);
+	printk(KERN_DEBUG "[*] %s: in former atkbd_set_device_attrs\n", __func__);
 	snprintf(atkbd->phys, sizeof(atkbd->phys), "%s/input0", atkbd->ps2dev.serio->phys);
 	atkbd->dev->phys = atkbd->phys;
 	atkbd->dev->name = "The honorable keyboard of Jason Wilkes";
