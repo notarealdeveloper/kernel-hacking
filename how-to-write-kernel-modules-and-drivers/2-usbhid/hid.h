@@ -183,28 +183,6 @@ struct hid_device {							/* device report descriptor */
 	wait_queue_head_t debug_wait;
 };
 
-static inline void *hid_get_drvdata(struct hid_device *hdev)
-{
-	return dev_get_drvdata(&hdev->dev);
-}
-
-static inline void hid_set_drvdata(struct hid_device *hdev, void *data)
-{
-	dev_set_drvdata(&hdev->dev, data);
-}
-
-
-struct hid_parser {
-	struct hid_global     global;
-	struct hid_global     global_stack[4];
-	unsigned              global_stack_ptr;
-	struct hid_local      local;
-	unsigned              collection_stack[4];
-	unsigned              collection_stack_ptr;
-	struct hid_device    *device;
-	unsigned              scan_flags;
-};
-
 struct hid_class_descriptor {
 	__u8  bDescriptorType;
 	__le16 wDescriptorLength;
@@ -285,18 +263,6 @@ extern void hid_unregister_driver(struct hid_driver *);
 	module_driver(__hid_driver, hid_register_driver, \
 		      hid_unregister_driver)
 
-
-extern int hidinput_connect(struct hid_device *hid, unsigned int force);
-extern void hidinput_disconnect(struct hid_device *);
-int hid_set_field(struct hid_field *, unsigned, __s32);
-int hid_input_report(struct hid_device *, int type, u8 *, int, int);
-int hidinput_find_field(struct hid_device *hid, unsigned int type, unsigned int code, struct hid_field **field);
-struct hid_device *hid_allocate_device(void);
-int hid_parse_report(struct hid_device *hid, __u8 *start, unsigned size);     
-int hid_open_report(struct hid_device *device);
-
-int hid_connect(struct hid_device *hid, unsigned int connect_mask);
-void hid_disconnect(struct hid_device *hid);
 const struct hid_device_id *hid_match_id(struct hid_device *hdev,
 					 const struct hid_device_id *id);
 s32 hid_snto32(__u32 value, unsigned n);

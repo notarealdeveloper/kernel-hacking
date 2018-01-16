@@ -1,0 +1,22 @@
+#!/bin/bash
+
+module=usbhid
+
+fix_it () {
+    sudo rmmod "$module" && sudo modprobe "$module"
+}
+
+sudo true
+
+if [[ "$1" == fix ]]; then
+    fix_it
+else
+    echo 'If this fucks up: ./build fix'
+    make cleanall &&
+    make &&
+    sudo rmmod "$module" &&
+    sudo dmesg -C &&
+    sudo insmod ./"$module".ko &&
+    make cleanall &&
+    dmesg
+fi

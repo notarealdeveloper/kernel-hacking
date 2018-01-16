@@ -1,22 +1,23 @@
-/**********************************************************************************
- ****************************** AMERICA, FUCK YEAH ********************************
- **********************************************************************************
- * My first *actual* software-based interaction with hardware, all in kernel space.
- * This is a *heavily* modified version of the default usbhid kernel module,
- * which can be found in drivers/hid/usbhid/hid-core.c of the kernel source tree.
- * The function hid_irq_in(struct urb *urb) is where the magic is.
+/* The function hid_irq_in(struct urb *urb) is where the magic is.
  * For more ideas, look in include/linux/usb.h for attributes
- * of the "struct urb" structure, since that's how USB transfers data.
- */
+ * of the "struct urb" structure, since that's how USB transfers data. */
+
+// printk("urb->transfer_buffer_length = %d\n", urb->transfer_buffer_length); 	/* Always returns 8 */
+// printk("urb->transfer_buffer = %p\n", urb->transfer_buffer);			/* This is the thing to fuck with! */
 
 #include <linux/module.h>
 #include <linux/usb.h>
 #include "hid.h"
 
 
+int hid_input_report(struct hid_device *, int type, u8 *, int, int);
+struct hid_device *hid_allocate_device(void);
+int hid_parse_report(struct hid_device *hid, __u8 *start, unsigned size);     
+
+
 /*  API provided by hid-core.c for USB HID drivers */
 void usbhid_close(struct hid_device *hid);
-int usbhid_open(struct hid_device *hid);
+int  usbhid_open(struct hid_device *hid);
 
 /* USB-specific HID struct, to be pointed to from struct hid_device->driver_data */
 struct usbhid_device {
@@ -45,78 +46,9 @@ struct usbhid_device {
 /* Input interrupt completion handler. */
 static void hid_irq_in(struct urb *urb)
 {
-	/* THIS IS THE FUNCTION THAT GETS CALLED REPEATEDLY AS THE MOUSE MOVES AROUND !!! */
-	/* ALL THE REAL-TIME MAGIC HAPPENS HERE, AND THIS IS WHAT YOU SHOULD PLAY WITH!!! */
-	/* THE URB STRUCT IS DEFINED IN LINUX/USB.H */
-
-	static long lulz = 0;
-
-	#define EAVESDROP 0
-	if (EAVESDROP) {
-		// printk("urb->transfer_buffer_length = %d\n", urb->transfer_buffer_length); 	/* Always returns 8 */
-		// printk("urb->transfer_buffer = %p\n", urb->transfer_buffer);			/* This is the thing to fuck with! */
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[0]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[1]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[2]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[3]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[4]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[5]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[6]);
-		printk("%02x ", ((unsigned char *)urb->transfer_buffer)[7]);
-		printk("\n");
-	}
-
-	/* Left */
-	// ((unsigned char *)urb->transfer_buffer)[2] = 0xff; /* Smaller numbers give faster leftward movement */
-	// ((unsigned char *)urb->transfer_buffer)[3] = 0xff;
-
-	/* Right */
-	// ((unsigned char *)urb->transfer_buffer)[2] = 0x01; /* Larger numbers give faster rightward movement */
-	// ((unsigned char *)urb->transfer_buffer)[3] = 0x00;
-
-	/* Up */
-	// ((unsigned char *)urb->transfer_buffer)[4] = 0xff; /* Smaller numbers give faster upward movement */
-	// ((unsigned char *)urb->transfer_buffer)[5] = 0xff;
-
-	/* Down */
-	// ((unsigned char *)urb->transfer_buffer)[4] = 0x01; /* Larger numbers give faster downward movement */
-	// ((unsigned char *)urb->transfer_buffer)[5] = 0x00;
-
-	/* Left and Right? This makes it jump all the way left. */
-	// ((unsigned char *)urb->transfer_buffer)[2] = 0x80;
-	// ((unsigned char *)urb->transfer_buffer)[3] = 0x80;
-
-	/* This provides a strong rightward gravitational field */
-	// ((unsigned char *)urb->transfer_buffer)[2] = 0xff;
-
-	/* This provides an infinitely strong leftwars gravitational field */
-	// ((unsigned char *)urb->transfer_buffer)[3] = 0xff;
-
-	/* Lulz! This disables U/D movement and makes L/R *really* sensitive */
-	// ((unsigned char *)urb->transfer_buffer)[2] = 0x80;
-
-	/* Lulz! This disables L/R movement and makes U/D *really* sensitive */
-	// ((unsigned char *)urb->transfer_buffer)[4] = 0x80;
-
-	/* Lulz! This makes everything chaotically sensitive */
-	// ((unsigned char *)urb->transfer_buffer)[2] = 0x80;
-	// ((unsigned char *)urb->transfer_buffer)[4] = 0x80;
-
-	/* This makes us right-click every 100 mouse-polls */
-	// if ((lulz % 100) == 0) ((unsigned char *)urb->transfer_buffer)[0] = 0x02;
-
-	/* This makes us left-click every 100 mouse-polls */
-	// if ((lulz % 100) == 0) ((unsigned char *)urb->transfer_buffer)[0] = 0x01;
-
-	/* This makes us middle-click every 100 mouse-polls */
-	// if ((lulz % 100) == 0) ((unsigned char *)urb->transfer_buffer)[0] = 0x04;
-
-	lulz++;
-
 	hid_input_report(urb->context, 0, urb->transfer_buffer, urb->actual_length, 1);
 	usb_submit_urb(urb, GFP_ATOMIC);
 }
-
 
 /* Control pipe completion handler. */
 static void hid_ctrl(struct urb *urb)
@@ -161,7 +93,7 @@ static int hid_alloc_buffers(struct usb_device *dev, struct hid_device *hid)
 {
 	struct usbhid_device *usbhid = hid->driver_data;
 	usbhid->inbuf = usb_alloc_coherent(dev, usbhid->bufsize, GFP_KERNEL, &usbhid->inbuf_dma);
-	usbhid->cr = kmalloc(sizeof(*usbhid->cr), GFP_KERNEL);
+	usbhid->cr = kzalloc(sizeof(*usbhid->cr), GFP_KERNEL);
 
 	return 0;
 }
@@ -213,7 +145,7 @@ static int usbhid_start(struct hid_device *hid)
 	int interval;
 	unsigned int insize = 0;
 
-	clear_bit(7, &usbhid->iofl);
+	// clear_bit(7, &usbhid->iofl);
 	usbhid->bufsize = 64;
 	hid_find_max_report(hid, 0, &insize);
 	hid_alloc_buffers(dev, hid);
@@ -242,8 +174,8 @@ static void usbhid_stop(struct hid_device *hid)
 
 	usb_free_urb(usbhid->urbin);
 	usb_free_urb(usbhid->urbctrl);
-	usbhid->urbin   = NULL; /* don't mess up next start */
-	usbhid->urbctrl = NULL;
+	// usbhid->urbin   = NULL; /* don't mess up next start */
+	// usbhid->urbctrl = NULL;
 
 	hid_free_buffers(hid_to_usb_dev(hid), hid); // Probably causes leaks
 }
@@ -306,8 +238,8 @@ static void usbhid_disconnect(struct usb_interface *intf)
 
 
 static const struct usb_device_id hid_usb_ids[] = {
-	{ .match_flags = USB_DEVICE_ID_MATCH_INT_CLASS, .bInterfaceClass = 3 },
-	{ }						/* Terminating entry */
+	{.match_flags = USB_DEVICE_ID_MATCH_INT_CLASS, .bInterfaceClass = 3},
+	{}						/* Terminating entry */
 };
 
 static struct usb_driver hid_driver = {
