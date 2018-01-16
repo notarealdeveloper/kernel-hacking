@@ -1,0 +1,20 @@
+#!/bin/bash
+
+fix_keyboard () {
+    sudo rmmod atkbd && sudo modprobe atkbd
+}
+
+sudo true
+
+if [[ "$1" == fix ]]; then
+    fix_keyboard
+else
+    echo 'If this fucks up, use mouse to enter: ./build fix'
+    make cleanall &&
+    make &&
+    sudo rmmod atkbd &&
+    sudo dmesg -C &&
+    sudo insmod ./atkbd.ko &&
+    make cleanall &&
+    dmesg
+fi
