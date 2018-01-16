@@ -27,7 +27,7 @@ struct hid_report {
 	struct list_head list;
 	unsigned id;					/* id of this report */
 	unsigned type;					/* report type */
-	void *fuckit_0[256];
+	void 	*fuckit_0[256];
 	unsigned fuckit_1;
 	unsigned size;					/* size of the report (bits) */
 	struct hid_device *device;			/* associated device */
@@ -78,13 +78,13 @@ struct hid_descriptor {
 
 struct hid_ll_driver {
 	int  (*start)(struct hid_device *hdev);
-	void (*stop)(struct hid_device *hdev);
-	int  (*open)(struct hid_device *hdev);
+	void (*stop) (struct hid_device *hdev);
+	int  (*open) (struct hid_device *hdev);
 	void (*close)(struct hid_device *hdev);
 	void *fuckit_power;
 	int  (*parse)(struct hid_device *hdev);
 	void *fuckit_request;
-	int  (*wait)(struct hid_device *hdev);
+	void *fuckit_wait;
 	int  (*raw_request) (struct hid_device *hdev, unsigned char reportnum, __u8 *buf, size_t len, unsigned char rtype, int reqtype);
 	void *fuckit_idle;
 };
@@ -121,7 +121,6 @@ struct usbhid_device {
 };
 
 #define usbhid_bufsize	64
-
 #define	hid_to_usb_dev(hid_dev) 	container_of(hid_dev->dev.parent->parent, struct usb_device, dev)
 
 /* Input interrupt completion handler. */
@@ -192,11 +191,7 @@ static int usbhid_start(struct hid_device *hid)
 	unsigned int maxsize = 0;
 
 	enter();
-	//printk("sizeof(struct list_head) == %lu\n", sizeof(struct list_head));
-	//printk("&(hid->fuckit_6[12]) == %p\n", &(hid->fuckit_6[12]));
-	//printk("&(hid->fuckit_0) == %p\n", &(hid->fuckit_0));
-	//printk("&(hid->fuckit_1) == %p\n", &(hid->fuckit_1));
-	//printk("&(hid->fuckit_7[0]) == %p\n", &(hid->fuckit_7[0]));
+	// printk("sizeof(struct list_head) == %lu\n", sizeof(struct list_head));
 	// printk("&(hid->inputs)       == %p\n", &(hid->inputs));
 	/* Was hid_find_max_report */
 	list_for_each_entry(report, &hid->report_enum[0].report_list, list) {
@@ -209,14 +204,14 @@ static int usbhid_start(struct hid_device *hid)
 	usbhid->inbuf = usb_alloc_coherent(dev, usbhid_bufsize, GFP_KERNEL, &usbhid->inbuf_dma);
 	usbhid->cr = kzalloc(sizeof(*usbhid->cr), GFP_KERNEL);
 
-
 	endpoint = &interface->endpoint[0].desc;
 	interval = endpoint->bInterval;
 	usbhid->urbin = usb_alloc_urb(0, GFP_KERNEL);
-	pipe = usb_rcvintpipe(dev, endpoint->bEndpointAddress);
+	// Next line does this: pipe = usb_rcvintpipe(dev, endpoint->bEndpointAddress);
+	printk("endpoint->bEndpointAddress == %u\n", endpoint->bEndpointAddress);
+	pipe = ((1 << 30) | (dev->devnum << 8) | (endpoint->bEndpointAddress << 15) | 0x80);
 
 	usb_fill_int_urb(usbhid->urbin, dev, pipe, usbhid->inbuf, maxsize, hid_irq_in, hid, interval);
-
 	usbhid->urbctrl = usb_alloc_urb(0, GFP_KERNEL);
 	leave();
 	return 0;
@@ -243,13 +238,12 @@ static int usbhid_raw_request(struct hid_device *hid, u8 reportnum, __u8 *buf, s
 }
 
 
-
 static struct hid_ll_driver usb_hid_driver = {
-	.parse 		= usbhid_parse,
 	.start 		= usbhid_start,
 	.stop  		= usbhid_stop,
 	.open  		= usbhid_open,
 	.close 		= usbhid_close,
+	.parse 		= usbhid_parse,
 	.raw_request 	= usbhid_raw_request,
 };
 
@@ -269,10 +263,9 @@ static int usbhid_probe(struct usb_interface *intf, const struct usb_device_id *
 	hid->ll_driver = &usb_hid_driver;
 	hid->dev.parent = &intf->dev;
 	hid->bus = 0x03;
+	strncpy(hid->name, "The honorable mouse of Jason Wilkes", sizeof(hid->name));
 
-	strncpy(hid->name, "Logitech USB Receiver", sizeof(hid->name));
 	usbhid = kzalloc(sizeof(*usbhid), GFP_KERNEL);
-
 	hid->driver_data = usbhid;
 	usbhid->hid = hid;
 	usbhid->intf = intf;
@@ -325,5 +318,5 @@ module_init(usbhid_init);
 module_exit(usbhid_exit);
 
 MODULE_DEVICE_TABLE (usb, hid_usb_ids);
-MODULE_AUTHOR("Blayson! Muahaha!");
+MODULE_AUTHOR("你的媽, aka the woman who is and always has been, so fat.");
 MODULE_LICENSE("GPL");
