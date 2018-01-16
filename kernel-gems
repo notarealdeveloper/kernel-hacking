@@ -1,0 +1,77 @@
+Documentation/memory-barriers.txt
+=================================
+An extremely helpful introduction to memory barriers,
+and the problems arising from out of order execution.
+Modern CPUs are completely fucked in the head! :-D
+
+Documentation/volatile-considered-harmful.txt
+=============================================
+Similar to the above, but a bit less technical.
+Written by Jonathan Corbet
+
+arch/mips/pci/ops-bridge.c is full of lulz
+==========================================
+e.g., 12 instances of "IOC3 is fucking fucked beyond belief."
+e.g., errors are handled with "goto oh_my_gawd;"
+
+kernel/module.c
+===============
+/* Doing init or already dying? */
+if (mod->state != MODULE_STATE_LIVE) {
+	/* FIXME: if (force), slam module count damn the torpedoes */
+	pr_debug("%s already dying\n", mod->name);
+	ret = -EBUSY;
+	goto out;
+}
+
+Documentation/stable_api_nonsense.txt
+=====================================
+This is being written to try to explain why Linux does not have a binary
+kernel interface, nor does it have a stable kernel interface.  Please
+realize that this article describes the _in kernel_ interfaces, not the
+kernel to userspace interfaces.  The kernel to userspace interface is
+the one that application programs use, the syscall interface.  That
+interface is _very_ stable over time, and will not break.  I have old
+programs that were built on a pre 0.9something kernel that still work
+just fine on the latest 2.6 kernel release.  That interface is the one
+that users and application programmers can count on being stable.
+...
+You think you want a stable kernel interface, but you really do not, and
+you don't even know it.  What you want is a stable running driver, and
+you get that only if your driver is in the main kernel tree.  You also
+get lots of other good benefits if your driver is in the main kernel
+tree, all of which has made Linux into such a strong, stable, and mature
+operating system which is the reason you are using it in the first
+place.
+
+
+greg-kh-driver-tutorial, 30:00
+==============================
+"I added struct class to the kernel making it so you can never compile the kernel with a C++ compiler"
+Classes are types of devices that interact with the user.
+
+From "Linux Kernel Development: Third 
+Edition" in the Acknowledgments section
+=======================================
+"Like most authors, I did not write this book in a cave, which is a good thing, because there are bears in caves."
+
+arch/s390/crypto/prng: a pseudo random number generator
+/*
+ * Any one who considers arithmetical methods of producing random digits is,
+ * of course, in a state of sin. -- John von Neumann
+ */
+
+
+One-liners
+==========
+include/linux/edac.h: * PS - I enjoyed writing all that about as much as you enjoyed reading it.
+arch/powerpc/math-emu/udivmodti4.c: /* This has so very few changes over libgcc2's __udivmoddi4 it isn't funny.  */
+usr/include/linux/input.h: #define INPUT_PROP_POINTING_STICK	0x05	/* is a pointing stick */
+
+Documentation/CodingStyle
+=========================
+Encoding the type of a function into the name (so-called Hungarian
+notation) is brain damaged - the compiler knows the types anyway and can
+check those, and it only confuses the programmer.  No wonder MicroSoft
+makes buggy programs
+
