@@ -1,15 +1,7 @@
-/* My AT and PS/2 keyboard driver */
-
-/* I've cut this driver down to about 1/3 its original size.
+/* My AT and PS/2 keyboard driver
+ * I've cut this driver down to about 1/3 its original size.
  * I probably fucked a few things up, but if so, I can't tell.
  * It still seems to work fine on my laptop. ~ Me
- */
-
-/*
- * This driver can handle standard AT keyboards and PS/2 keyboards in
- * Translated and Raw Set 2 and Set 3, as well as AT keyboards on dumb
- * input-only controllers and AT keyboards connected over a one way RS232
- * converter.
  */
 
 #include <linux/module.h>
@@ -73,65 +65,51 @@ struct atkbd {
 	unsigned char emul;
 };
 
-static void my_serio_close(struct serio *serio)
-{
-	if (serio->close)
-		serio->close(serio);
-	serio->drv = NULL;
-	// Locking
-	// serio->dev.driver_data = NULL;
-	// Unlocking
-}
-
-/* Here we process the data received from the keyboard into events. */
+/* Here we process the data received from the keyboard into events.
+ * data" is the scancode (e.g., 0x01 for ESC, 0x02 for 1, etc.)
+ * When that key is released, it's the same value | 0x80. */
 static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data, unsigned int flags)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
 	unsigned int code = data;
 
-	/* Note to self: "data" is the scancode, i.e., 0x01 for ESC, 0x02 for 1, etc.
-	 * When that key is released, it's the same value | 0x80. */
 	printk("[*] In %s: data == 0x%02x, flags == %d\n", __func__, data, flags);
 
 	if (unlikely(atkbd->ps2dev.flags & PS2_FLAG_ACK) && ps2_handle_ack(&atkbd->ps2dev, data)) {
-		printk(KERN_INFO "[*] In unlikely ps2_command (1) Fucking off.\n");
-		goto out;
+		printk(KERN_INFO "[*] In unlikely ps2_command. Fucking off.\n");
+		goto done;
 	}
 
 	/* Checks if we should mangle the scancode to extract 'release' bit in translated mode. */
 	if ((code == ATKBD_RET_EMUL0) || (code == ATKBD_RET_EMUL1)) {
 		atkbd->emul = 1;
 		printk("atkbd->emul set to 1\n");
-		goto out;
+		goto done;
 	}
 
-        /* This block used to be atkbd_compat_scancode() */
-	/* The most interesting piece was the following line: */
-	/* code = (code & 0x7f) | ((code & 0x80) << 1); */
-	/* This would turn, e.g., 0bABCDEFGH into 0bA0BCDEFGH */
-	/* Then it would store the atkbd->emul bit in the new "0" slot, as below, for compatability with older kernels */
-	/* This is *exactly* like what Intel did with the Global Descriptor Table, and why bootloaders are such a fuckfest to write! :D */
-	/* printscreen and ctrl+shift stuff breaks without this */
+        /* This used to be atkbd_compat_scancode(). Most interesting piece was
+	 * code = (code & 0x7f) | ((code & 0x80) << 1); (e.g., turns 0bABCDEFGH into 0bA0BCDEFGH)
+	 * Then it would store the atkbd->emul bit in the new 0 slot, as below, for compatability with older kernels.
+	 * This is *exactly* like what Intel did with the Global Descriptor Table, and why bootloaders are such a fuckfest to write :D
+	 * printscreen and ctrl+shift stuff breaks without this */
+        /* This used to be atkbd_compat_scancode(). It was a hack almost 
+	 * exactly like what Intel did with the Global Descriptor Table */
 	code &= 0b01111111;
-	if (atkbd->emul == 1)
+	if (atkbd->emul)
 		code |= 0b10000000;
 
 	atkbd->emul = 0;
-
 	input_event(atkbd->dev, EV_KEY, atkbd->keycode[code], data < 0x80);
 	input_sync(atkbd->dev);
 
-out:
-	return IRQ_HANDLED;
+done:	return IRQ_HANDLED;
 }
 
 
-/*
- * atkbd_connect() is called when the serio module finds an interface
+/* atkbd_connect() is called when the serio module finds an interface
  * that isn't handled yet by an appropriate device driver. We check if
  * there is an AT keyboard out there and if yes, we register ourselves
- * to the input module.
- */
+ * to the input module. */
 static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 {
 	struct atkbd *atkbd;
@@ -147,7 +125,6 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 
 	serio->dev.driver_data = atkbd; // serio_set_drvdata(serio, atkbd);
 	serio_open(serio, drv);
-
 
         /* BEGIN ATKBD PROBE */
 	if (ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_ENABLE)) {
@@ -183,7 +160,8 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 	return 0;
 
 fail:
-	my_serio_close(serio);
+	serio_close(serio);
+	serio->dev.driver_data = NULL;
 	input_free_device(atkbd->dev);
 	kfree(atkbd);
 	return err;
@@ -193,10 +171,9 @@ fail:
 static void atkbd_disconnect(struct serio *serio)
 {
 	struct atkbd *atkbd = serio_get_drvdata(serio);
-
-	printk(KERN_DEBUG "[*] In atkbd_disconnect\n");
-
-	my_serio_close(serio);
+	printk(KERN_DEBUG "[*] In %s\n", __func__);
+	serio_close(serio);
+	serio->dev.driver_data = NULL;
 	input_unregister_device(atkbd->dev);
 	kfree(atkbd);
 }
@@ -217,13 +194,13 @@ static struct serio_driver atkbd_drv = {
 
 static int __init atkbd_init(void)
 {
-	printk(KERN_DEBUG "[*] In atkbd_init\n");
+	printk(KERN_DEBUG "[*] In %s\n", __func__);
 	return serio_register_driver(&atkbd_drv);
 }
 
 static void __exit atkbd_exit(void)
 {
-	printk("[*] In atkbd_exit\n");
+	printk(KERN_DEBUG "[*] In %s\n", __func__);
 	serio_unregister_driver(&atkbd_drv);
 }
 
