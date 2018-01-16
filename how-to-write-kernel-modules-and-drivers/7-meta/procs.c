@@ -1,4 +1,6 @@
+#include <linux/sched.h>	/* for current */
 #include "kapi.h"
+#include "util.h"
 
 void procs_print_task(struct task_struct *task)
 {
@@ -8,8 +10,8 @@ void procs_print_task(struct task_struct *task)
 		task = current;
 
 	parent = task->parent;
-	printk(KERN_DEBUG "%s: current = %s (pid %u), parent = %s (pid %u)\n",
-		__func__, task->comm, task->pid, parent->comm, parent->pid);
+	msg("current = %s (pid %u), parent = %s (pid %u)",
+		task->comm, task->pid, parent->comm, parent->pid);
 	procs_print_children(task);
 }
 
@@ -21,7 +23,7 @@ void procs_print_children(struct task_struct *task)
 		return;
 
 	list_for_each_entry(child, &task->children, sibling) {
-		printk(KERN_INFO "\t\tchild %s (pid = %u)\n", child->comm, child->pid);
+		msg("\t\tchild %s (pid = %u)", child->comm, child->pid);
 	}
 }
 
@@ -41,7 +43,7 @@ void procs_psaux(void)
 {
 	struct task_struct *task;
 	for_each_process(task) {
-		printk(KERN_INFO "%s: %s (pid = %u)\n", __func__, task->comm, task->pid);
+		msg("%s (pid = %d)", task->comm, task->pid);
 		procs_print_children(task);
 	}
 }
@@ -67,40 +69,40 @@ void procs_psaux(void)
  * $ pcregrep -M 'define INIT_TASK\(tsk\)(.|\n)*?\n}' include/linux/init_task.h
  */
 
-void procs_psaux_v2(void)
+static void procs_psaux_v2(void)
 {
 	struct task_struct *task;
 	for (task = &init_task; (task = next_task(task)) != &init_task; ) {
-		printk(KERN_INFO "%s: %s (pid = %d)\n", __func__, task->comm, task->pid);
+		msg("%s (pid = %d)", task->comm, task->pid);
 	}
 }
 
-void procs_psaux_v3(void)
+static void procs_psaux_v3(void)
 {
 	struct task_struct *task;
 	/* Note: the list_head in any task_struct is called "tasks" */
 	struct list_head *tasklist = &init_task.tasks;
 	list_for_each_entry(task, tasklist, tasks) {
-		printk(KERN_INFO "%s: %s (pid = %d)\n", __func__, task->comm, task->pid);
+		msg("%s (pid = %d)", task->comm, task->pid);
 	}
 }
 
-void procs_psaux_v4(void)
+static void procs_psaux_v4(void)
 {
 	struct task_struct *task;
 	list_for_each_entry(task, &init_task.tasks, tasks) {
-		printk(KERN_INFO "%s: %s (pid = %d)\n", __func__, task->comm, task->pid);
+		msg("%s (pid = %d)", task->comm, task->pid);
 	}
 }
 
-void procs_psaux_v5(void)
+static void procs_psaux_v5(void)
 {
 	struct task_struct *task;
 	struct list_head   *pos;
 
 	list_for_each(pos, &init_task.tasks) {
 		task = list_entry(pos, struct task_struct, tasks);
-		printk(KERN_INFO "%s: %s (pid = %d)\n", __func__, task->comm, task->pid);
+		msg("%s (pid = %d)", task->comm, task->pid);
 	}
 }
 

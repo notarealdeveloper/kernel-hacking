@@ -10,22 +10,28 @@
  * (2) visit http://en.wikipedia.org/wiki/Magic_SysRq_key
  */
 
-static void kmod_exit(void);
+/* fs/proc/cmdline.c is a *great* minimal example of a /proc file */
+
+static int  kmod_init(void);
 static void kmod_exit(void);
 static void kmod_get_retarded(void);
 
-static int kmod_init(void) 
+static int __init kmod_init(void) 
 {
 	msg("[*] Initializing module");
-	kobj_init();
+	sysfs_enter();
 	procfs_init();
-	modules_lsmod();
+	// modules_lsmod();
 	context_print();
 	kmod_get_retarded();
 	procs_print_task(NULL);
-	procs_psaux();
+	// procs_psaux();
 	setup_regs_for_test();
 	state_dump();
+	uaccess_show_access_info();
+	uaccess_show_thread_info();
+	lib_glob_usage();
+	lib_syscall_info();
 	msg("[*] Done initializing module");
 	return 0;
 }
@@ -45,7 +51,7 @@ static void kmod_exit(void)
 {
 	msg("[*] Removing module");
 	procs_print_task(NULL);
-	kobj_kill();
+	sysfs_leave();
 	procfs_exit();
 	toplel_remove();
 	msg("[*] Done removing module");

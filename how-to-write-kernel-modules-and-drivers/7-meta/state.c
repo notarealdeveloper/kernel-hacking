@@ -1,5 +1,6 @@
 #include <linux/printk.h>
 #include "state.h"
+#include "util.h"
 
 /* define functions to let us set registers
  * ========================================
@@ -38,21 +39,21 @@ void state_dump(void)
 	struct regs regs;
 	state_save_regs(&regs);
 	state_dump_regs(&regs);
-	printk("%s: [*] Dumping stack. This is not an oops.\n", __func__);
+	msg("[*] Dumping stack. This is not an oops.");
 	dump_stack();
 }
 
 void state_dump_regs(struct regs *regs)
 {
-	printk(KERN_INFO "%s: rax = %016lx\n", __func__, regs->rax);
-	printk(KERN_INFO "%s: rbx = %016lx\n", __func__, regs->rbx);
-	printk(KERN_INFO "%s: rcx = %016lx\n", __func__, regs->rcx);
-	printk(KERN_INFO "%s: rdx = %016lx\n", __func__, regs->rdx);
-	printk(KERN_INFO "%s: rsi = %016lx\n", __func__, regs->rsi);
-	printk(KERN_INFO "%s: rdi = %016lx\n", __func__, regs->rdi);
-	printk(KERN_INFO "%s: rsp = %016lx\n", __func__, regs->rsp);
-	printk(KERN_INFO "%s: rbp = %016lx\n", __func__, regs->rbp);
-	printk(KERN_INFO "%s: rip = %016lx\n", __func__, regs->rip);
-	printk(KERN_INFO "%s: cr0 = %016lx\n", __func__, regs->cr0);
+	msg("rax = %016lx", regs->rax);
+	msg("rbx = %016lx", regs->rbx);
+	msg("rcx = %016lx", regs->rcx);
+	msg("rdx = %016lx", regs->rdx);
+	msg("rsi = %016lx", regs->rsi);
+	msg("rdi = %016lx", regs->rdi);
+	msg("rsp = %016lx", regs->rsp);
+	msg("rbp = %016lx", regs->rbp);
+	msg("rip = %016lx", regs->rip);
+	msg("cr0 = %016lx", regs->cr0);
 	// printk(KERN_INFO "rip = %016lx\n", __builtin_return_address(0));
 }

@@ -61,7 +61,7 @@ static struct kobject *my_kobj;
 
 
 /* Exported functions begin here */
-extern int kobj_init(void)
+int sysfs_enter(void)
 {
 	int ret;
 
@@ -78,7 +78,7 @@ extern int kobj_init(void)
 	return ret;
 }
 
-extern void kobj_kill(void)
+void sysfs_leave(void)
 {
 	kobject_put(my_kobj);
 }

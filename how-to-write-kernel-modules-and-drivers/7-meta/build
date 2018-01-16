@@ -1,6 +1,7 @@
 #!/bin/bash
 
-module="$(cat Makefile | grep obj-m | grep -Po '[^\s]*(?=\.o)')"  # currently, this is "waffles"
+# module="$(cat Makefile | grep obj-m | grep -Po '[^\s]*(?=\.o)')"  # currently, this is "waffles"
+module="$(cat Makefile | grep 'MODULE' | head -n 1 | grep -Po '[a-zA-Z0-9]*$')"
 sysfsd="/sys/kernel/${module}"
 procfile="/proc/my-proc-file"
 
@@ -48,7 +49,7 @@ show_dmesg () {
 
 sudo true
 make cleanall &&
-make -j8 &&
+make &&
 if [[ $(lsmod | grep -c "$module") != "0" ]]; then sudo rmmod "$module"; fi &&
 sudo dmesg -C &&
 sudo insmod ./"$module".ko &&

@@ -14,6 +14,7 @@
 #define PROCFILE	"my-proc-file"
 #define BUFSIZE		1024
 
+/* TODO: Add procdir = proc_mkdir("myprocdir", NULL); */
 
 static struct proc_dir_entry *proc_file;
 static struct file_operations proc_fops;
