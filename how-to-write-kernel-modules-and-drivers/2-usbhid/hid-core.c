@@ -13,16 +13,6 @@
 /* Begin hid.h */
 /***************/
 
-
-/* This is the collection stack. We climb up the stack to determine application and function of each field. */
-struct hid_collection {
-	unsigned type;
-	unsigned usage;
-	unsigned level;
-};
-
-struct hid_usage {};
-
 struct hid_field {
 	__s32    *value;		/* last known value(s) */
 	struct hid_report *report;	/* associated report */
@@ -35,7 +25,7 @@ struct hid_report {
 	struct list_head list;
 	unsigned id;					/* id of this report */
 	unsigned type;					/* report type */
-	struct hid_field *field[256];			/* fields of the report */
+	void *fuckit[256];   				/* fields of the report */
 	unsigned maxfield;				/* maximum valid field index */
 	unsigned size;					/* size of the report (bits) */
 	struct hid_device *device;			/* associated device */
@@ -55,12 +45,6 @@ struct hid_input {
 	struct input_dev *input;
 };
 
-enum hid_type {
-	HID_TYPE_OTHER = 0,
-	HID_TYPE_USBMOUSE,
-	HID_TYPE_USBNONE
-};
-
 /* Something in usbcore is using this. Can't make normal assumptions
  * Update: The weird behavior was because the order of members in this structure matters! 
  * Something in usbcore or elsewhere must be *parsing* this shit! */
@@ -69,19 +53,11 @@ struct hid_device {							/* device report descriptor */
 	unsigned fuckit_1;
 	u8 	*rdesc;
 	unsigned rsize;
-	void 	*fuckit_2;
-	unsigned fuckit_3;
-	unsigned fuckit_4;
-	unsigned fuckit_5;
+	char fuckit_2[24];
 	u16 bus;							/* BUS ID */
-	u16 group;							/* Report group */
-	u32 vendor;							/* Vendor ID */
-	u32 product;							/* Product ID */
-	u32 version;							/* HID version */
-	enum hid_type type;						/* device type (mouse, kbd, ...) */
-	unsigned country;						/* HID country */
+	char fuckit_3[22];
 	struct hid_report_enum report_enum[3];
-	struct work_struct led_work;					/* delayed LED worker */
+	char fuckit_4[32];
 
 	struct semaphore driver_lock;					/* protects the current driver, except during input */
 	struct semaphore driver_input_lock;				/* protects the current driver */
@@ -103,9 +79,6 @@ struct hid_device {							/* device report descriptor */
 	char name[128];							/* Device name */
 	char phys[64];
 	void *driver_data;
-
-	/* temporary hid_ff handling (until moved to the drivers) */
-	// int (*ff_init)(struct hid_device *);
 };
 
 
@@ -195,6 +168,8 @@ int usbhid_open(struct hid_device *hid)
 	usb_submit_urb(usbhid->urbin, GFP_ATOMIC);
 	clear_bit(3, &usbhid->iofl);
 	usb_autopm_put_interface(usbhid->intf);
+
+	// printk("NIG NOG! %lu\n", sizeof(struct work_struct));
 	return 0;
 }
 
