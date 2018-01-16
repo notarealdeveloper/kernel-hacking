@@ -1,0 +1,189 @@
+From e813205e966c2f4b8a0943c15c27d27fc7833e2f Mon Sep 17 00:00:00 2001
+From: Jason Wilkes <letshaveanadventure@gmail.com>
+Date: Thu, 11 Dec 2014 13:09:47 -0800
+Subject: [PATCH] locking: fix dangling references to nonexistent files
+
+Commit e25a64c4017e ("locking: Move the semaphore core to kernel/locking/")
+and others in the same series moved the locking core to a new location.
+This patch just updates various docs and comments (e.g., things like
+"see kernel/semaphore.c for documentation") to refer to the new locations.
+
+Signed-off-by: Jason Wilkes <letshaveanadventure@gmail.com>
+---
+ Documentation/locking/lockdep-design.txt | 2 +-
+ include/linux/lockdep.h                  | 4 ++--
+ include/linux/rwlock_api_smp.h           | 2 +-
+ include/linux/semaphore.h                | 2 +-
+ include/linux/spinlock_api_smp.h         | 2 +-
+ kernel/locking/lockdep.c                 | 2 +-
+ kernel/locking/lockdep_internals.h       | 2 +-
+ kernel/locking/lockdep_proc.c            | 2 +-
+ kernel/locking/mutex-debug.c             | 2 +-
+ kernel/locking/mutex-debug.h             | 2 +-
+ kernel/locking/rwsem-xadd.c              | 1 -
+ kernel/locking/rwsem.c                   | 2 +-
+ tools/perf/builtin-lock.c                | 2 +-
+ 13 files changed, 13 insertions(+), 14 deletions(-)
+
+diff --git a/Documentation/locking/lockdep-design.txt b/Documentation/locking/lockdep-design.txt
+index 5dbc99c..5001280 100644
+--- a/Documentation/locking/lockdep-design.txt
++++ b/Documentation/locking/lockdep-design.txt
+@@ -34,7 +34,7 @@ The validator tracks lock-class usage history into 4n + 1 separate state bits:
+ - 'ever held with STATE enabled'
+ - 'ever held as readlock with STATE enabled'
+ 
+-Where STATE can be either one of (kernel/lockdep_states.h)
++Where STATE can be either one of (kernel/locking/lockdep_states.h)
+  - hardirq
+  - softirq
+  - reclaim_fs
+diff --git a/include/linux/lockdep.h b/include/linux/lockdep.h
+index 74ab231..04e1f02 100644
+--- a/include/linux/lockdep.h
++++ b/include/linux/lockdep.h
+@@ -24,8 +24,8 @@ extern int lock_stat;
+ #include <linux/stacktrace.h>
+ 
+ /*
+- * We'd rather not expose kernel/lockdep_states.h this wide, but we do need
+- * the total number of states... :-(
++ * We'd rather not expose kernel/locking/lockdep_states.h this wide,
++ * but we do need the total number of states... :-(
+  */
+ #define XXX_LOCK_USAGE_STATES		(1+3*4)
+ 
+diff --git a/include/linux/rwlock_api_smp.h b/include/linux/rwlock_api_smp.h
+index 5b9b84b..b3081c8 100644
+--- a/include/linux/rwlock_api_smp.h
++++ b/include/linux/rwlock_api_smp.h
+@@ -9,7 +9,7 @@
+  * include/linux/rwlock_api_smp.h
+  *
+  * spinlock API declarations on SMP (and debug)
+- * (implemented in kernel/spinlock.c)
++ * (implemented in kernel/locking/spinlock.c)
+  *
+  * portions Copyright 2005, Red Hat, Inc., Ingo Molnar
+  * Released under the General Public License (GPL).
+diff --git a/include/linux/semaphore.h b/include/linux/semaphore.h
+index dc368b8..11c86fb 100644
+--- a/include/linux/semaphore.h
++++ b/include/linux/semaphore.h
+@@ -4,7 +4,7 @@
+  *
+  * Distributed under the terms of the GNU GPL, version 2
+  *
+- * Please see kernel/semaphore.c for documentation of these functions
++ * Please see kernel/locking/semaphore.c for documentation of these functions
+  */
+ #ifndef __LINUX_SEMAPHORE_H
+ #define __LINUX_SEMAPHORE_H
+diff --git a/include/linux/spinlock_api_smp.h b/include/linux/spinlock_api_smp.h
+index 42dfab8..364b674 100644
+--- a/include/linux/spinlock_api_smp.h
++++ b/include/linux/spinlock_api_smp.h
+@@ -9,7 +9,7 @@
+  * include/linux/spinlock_api_smp.h
+  *
+  * spinlock API declarations on SMP (and debug)
+- * (implemented in kernel/spinlock.c)
++ * (implemented in kernel/locking/spinlock.c)
+  *
+  * portions Copyright 2005, Red Hat, Inc., Ingo Molnar
+  * Released under the General Public License (GPL).
+diff --git a/kernel/locking/lockdep.c b/kernel/locking/lockdep.c
+index 88d0d44..69c8752 100644
+--- a/kernel/locking/lockdep.c
++++ b/kernel/locking/lockdep.c
+@@ -1,5 +1,5 @@
+ /*
+- * kernel/lockdep.c
++ * kernel/locking/lockdep.c
+  *
+  * Runtime locking correctness validator
+  *
+diff --git a/kernel/locking/lockdep_internals.h b/kernel/locking/lockdep_internals.h
+index 51c4b24..9bb3bbf 100644
+--- a/kernel/locking/lockdep_internals.h
++++ b/kernel/locking/lockdep_internals.h
+@@ -1,5 +1,5 @@
+ /*
+- * kernel/lockdep_internals.h
++ * kernel/locking/lockdep_internals.h
+  *
+  * Runtime locking correctness validator
+  *
+diff --git a/kernel/locking/lockdep_proc.c b/kernel/locking/lockdep_proc.c
+index ef43ac4..163a8dd 100644
+--- a/kernel/locking/lockdep_proc.c
++++ b/kernel/locking/lockdep_proc.c
+@@ -1,5 +1,5 @@
+ /*
+- * kernel/lockdep_proc.c
++ * kernel/locking/lockdep_proc.c
+  *
+  * Runtime locking correctness validator
+  *
+diff --git a/kernel/locking/mutex-debug.c b/kernel/locking/mutex-debug.c
+index 5cf6731..e3da177 100644
+--- a/kernel/locking/mutex-debug.c
++++ b/kernel/locking/mutex-debug.c
+@@ -1,5 +1,5 @@
+ /*
+- * kernel/mutex-debug.c
++ * kernel/locking/mutex-debug.c
+  *
+  * Debugging code for mutexes
+  *
+diff --git a/kernel/locking/mutex-debug.h b/kernel/locking/mutex-debug.h
+index 0799fd3..8a2fdcb 100644
+--- a/kernel/locking/mutex-debug.h
++++ b/kernel/locking/mutex-debug.h
+@@ -7,7 +7,7 @@
+  *
+  * This file contains mutex debugging related internal declarations,
+  * prototypes and inline functions, for the CONFIG_DEBUG_MUTEXES case.
+- * More details are in kernel/mutex-debug.c.
++ * More details are in kernel/locking/mutex-debug.c.
+  */
+ 
+ /*
+diff --git a/kernel/locking/rwsem-xadd.c b/kernel/locking/rwsem-xadd.c
+index 7628c3f..a019684 100644
+--- a/kernel/locking/rwsem-xadd.c
++++ b/kernel/locking/rwsem-xadd.c
+@@ -1,7 +1,6 @@
+ /* rwsem.c: R/W semaphores: contention handling functions
+  *
+  * Written by David Howells (dhowells@redhat.com).
+- * Derived from arch/i386/kernel/semaphore.c
+  *
+  * Writer lock-stealing by Alex Shi <alex.shi@intel.com>
+  * and Michel Lespinasse <walken@google.com>
+diff --git a/kernel/locking/rwsem.c b/kernel/locking/rwsem.c
+index e2d3bc7..9c7a34d 100644
+--- a/kernel/locking/rwsem.c
++++ b/kernel/locking/rwsem.c
+@@ -1,4 +1,4 @@
+-/* kernel/rwsem.c: R/W semaphores, public implementation
++/* kernel/locking/rwsem.c: R/W semaphores, public implementation
+  *
+  * Written by David Howells (dhowells@redhat.com).
+  * Derived from asm-i386/semaphore.h
+diff --git a/tools/perf/builtin-lock.c b/tools/perf/builtin-lock.c
+index e7ec715..55d612f 100644
+--- a/tools/perf/builtin-lock.c
++++ b/tools/perf/builtin-lock.c
+@@ -29,7 +29,7 @@
+ 
+ static struct perf_session *session;
+ 
+-/* based on kernel/lockdep.c */
++/* based on kernel/locking/lockdep.c */
+ #define LOCKHASH_BITS		12
+ #define LOCKHASH_SIZE		(1UL << LOCKHASH_BITS)
+ 
+-- 
+2.1.3
+

@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# Clone the tree
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+
+cd linux
+git branch learning
+git checkout learning
+git status
+
+# If you feel like it, you can run checkpatch on a regular file
+# to see what changes need to be made to satisfy the tool. e.g.,
+# ./scripts/checkpatch.pl --file --terse drivers/input/keyboard/atkbd.c
+
+#########################
+### Then make changes ###
+#########################
+
+git status
+git diff
+# build the kernel, or just the directory we changed
+make M=drivers/input/keyboard/
+
+git commit -a
+
+# Add this at the top:
+input: keyboard: atkbd: fixed some checkpatch errors
+
+Fixed a coding style issue.
+Just playing around. If this ends up online, I fucked up.
+
+Signed-off-by: Jason Wilkes <letshaveanadventure@gmail.com>
+# Then save and exit
+
+# Check it out! We can see our changes.
+git log
+# After the commit, git diff now returns nothing.
+# However, git show will show us our patch!
+git show
+# Or to show who did the commit (did I fuck up somewhere?)
+git show --pretty=full
+
+########################
+### Making the patch ###
+########################
+
+# Now we want to send the patch off to someone, but first we have
+# to actually make it into a patch! Let's do that now.
+
+git format-patch master..learning
+# 0001-input-keyboard-atkbd-fixed-some-checkpatch-errors.patch
+
+# This makes a patch file in the current directory.
+# If we open it in an editor, we can see that git format-patch
+# actually formatted the patch as an email!
+
+# vim 0001-input-keyboard-atkbd-fixed-some-checkpatch-errors.patch
+
+
+#########################
+### Sending the patch ###
+#########################
+
+# Documentation/email-clients.txt
+# Lots of good info on configuring email clients. However!
+# From the top of that file:
+# 
+# ----------------------------------------------------------------------
+# These days most developers use `git send-email` instead of regular
+# email clients.  The man page for this is quite good.  On the receiving
+# end, maintainers use `git am` to apply the patches.
+# 
+# If you are new to git then send your first patch to yourself.  Save it
+# as raw text including all the headers.  Run `git am raw_email.txt` and
+# then review the changelog with `git log`.  When that works then send
+# the patch to the appropriate mailing list(s).
+
+
+# We'll do *something* like this
+# git send-email 0001-input-keyboard-atkbd-fixed-some-checkpatch-errors.patch
+# But we need to decide who to send it to!
+
+./scripts/get_maintainer.pl -f ./drivers/input/keyboard/atkbd.c
+# GAH! It shows my commit! The horror!
+#
+# Dmitry Torokhov <dmitry.torokhov@gmail.com> (commit_signer:2/3=67%,authored:1/3=33%)
+# Sheng-Liang Song <ssl@chromium.org> (commit_signer:1/3=33%,authored:1/3=33%)
+# Jason Wilkes <letshaveanadventure@gmail.com> (commit_signer:1/3=33%,authored:1/3=33%)
+# linux-kernel@vger.kernel.org (open list)
+
+
+# Resume re-re-re-watching at 26:15 in https://www.youtube.com/watch?v=LLBrBBImJt4
+

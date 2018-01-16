@@ -1,0 +1,279 @@
+### To see how many we've gathered in this file:
+### cat kernel-typos | sort | uniq | sed /^$/d | grep -v '^#' | wc -l
+
+### Typo: Miscellaneous (new)
+Documentation/vDSO/vdso_standalone_test_x86.c: /* We need a libc functions... */
+
+
+### Typo:  Miscellaneous
+### Regex: None
+usb/host/ohci.h: * That leads to some tricky Kconfig rules howevber. There are
+net/irda/irnet/irnet_ppp.c: /* Did we got it ? */
+include/linux/libps2.h: #define PS2_FLAG_WAITID		8	/* Command execiting is GET ID */
+init/main.c: * Set up the scheduler prior starting any interrupts (such as the
+drivers/usb/gadget/function/f_mass_storage.c: * a callback functions is needed.
+drivers/net/fddi/skfp/drvfbi.c:	*	 at very first before any other initialization functions is
+fs/cifs/smb2pdu.c: *	The general structure of the worker functions is:
+drivers/staging/rtl8192u/ieee80211/ieee80211_module.c: 	//awayls open this flags to show error out
+drivers/staging/rtl8192u/ieee80211/ieee80211_module.c: 	//These function were added to load crypte module autoly
+Documentation/usb/gadget_multi.txt: First of all, Windows need to detect the gadget as an USB composite
+drivers/mtd/nand/sh_flctl.c: * First this loops checks in FLDTCNTR if we are ready to read out the
+drivers/char/Kconfig: This devices exposes a hardware mechanism for fast synchronization
+drivers/ata/sata_inic162x.c: /* Set dma_mask.  This devices doesn't support 64bit addressing. */
+drivers/mtd/devices/docg3.c: * @cascade: the cascade of chips this devices will belong to
+kernel/exit.c:	 * If do_exit is called because this processes oopsed, it's possible
+kernel/sched/sched.h: * Return the group to which this tasks belongs.
+
+
+### Funny files
+drivers/staging/rtl8192u/ieee80211/ieee80211_module.c
+Documentation/usb/gadget_multi.txt
+
+
+### Typo: '(?<!a) few'
+kernel/time/Kconfig:	 the task mostly runs in userspace and has few kernel activity.
+init/Kconfig:	  of each CPU as a power of 2. The used space is typically only few
+kernel/bpf/verifier.c:	/* grab the mutex to protect few globals used by verifier */
+sound/oss/ad1848.c:		if (tmp2 == 0x8a)	/* AD1847 has few bits hardcoded to 1 */
+sound/oss/ad1848.c:		if (tmp2 == 0x65)	/* AD1847 has couple of bits hardcoded to 1 */
+
+
+### Typo:  much <count_noun>
+### Regex: grep -PIir 'much (bytes|bits|packets|elements|entries|items|blocks|refs|credits|drivers)'
+arch/s390/crypto/prng.c:	"PRNG add entropy after that much bytes were produced");
+include/linux/sysv_fs.h: * that no reasonable file system would have that much entries in root
+include/linux/mtd/ubi.h: * physical eraseblock size and on how much bytes UBI headers consume. But
+Documentation/usb/gadget_multi.txt:tries to much drivers for each individual interface (sort of, don't
+drivers/input/touchscreen/edt-ft5x06.c:		datalen = 26; /* how much bytes to listen for */
+drivers/isdn/hardware/mISDN/hfcsusb.h:	int bit_line;		/* how much bits are in the fifo? */
+drivers/isdn/hysdn/boardergo.c:		/* now we know how much bytes we may put in the puffer */
+drivers/isdn/hisax/hfc_usb.c:	int bit_line;		/* how much bits are in the fifo? */
+drivers/block/drbd/drbd_worker.c:		 * how much bits to resync.  We cannot do that always, because for an
+drivers/mtd/ubi/upd.c: * @count: how much bytes to write
+drivers/mtd/ubi/upd.c: * @count: how much bytes to write
+drivers/net/ethernet/qualcomm/qca_spi.c:/*   Check that tx ring stores only so much bytes
+drivers/net/wireless/ti/wlcore/conf.h:	 * when a slow link has this much packets pending, it becomes a low
+drivers/net/wireless/ti/wlcore/conf.h:	 * when a fast link has this much packets pending, it becomes a low
+net/irda/irttp.c:	/* Do we have too much credits to send to peer ? */
+sound/core/seq/seq_ports.c:much elements are in array.
+sound/drivers/pcm-indirect2.h:	 * to be as much bytes which were played. So sw_io will stay behind
+sound/drivers/pcm-indirect2.c:	 * diff: obviously ALSA wrote that much bytes into the intermediate
+fs/reiserfs/do_balan.c:		       "PAP-12220: there are no so much entries (%d), only %d",
+fs/reiserfs/lbalance.c:		       "vs-10060: no so much bytes %lu (needed %lu)",
+fs/reiserfs/lbalance.c:	       "no so much items (%d) to delete (only %d)", first,
+fs/ext4/mballoc.c:		ext4_warning(sb, "too much blocks added to group %u\n",
+fs/ocfs2/xattr.c: * Lock the meta_ac and caculate how much credits we need for reflink xattrs.
+fs/btrfs/delayed-ref.c:	 * We don't have too much refs to merge in the case of delayed data
+fs/freevxfs/vxfs_inode.h:	u_int32_t	vdi_blocks;	/* How much blocks does inode occupy */
+
+
+### Typo:  how many <count_noun>
+### Regex: grep -PIir 'how many (time|byte|bit|block) '
+arch/ia64/lib/memcpy_mck.S:	sub	B = dst0, saved_in0	// how many byte copied so far
+arch/ia64/lib/clear_user.S:	// way would be to use ar.lc and derive how many byte were left by
+include/linux/sunrpc/cache.h:	atomic_t		readers;		/* how many time is /chennel open */
+drivers/mtd/nand/denali.c:	 * tell driver how many bit controller will skip before
+drivers/uwb/uwb-internal.h: * @hits: how many time we have seen this beacon since last time we
+drivers/net/wireless/iwlwifi/mvm/fw-api-scan.h: * @repeats: how many time to repeat the scan
+drivers/staging/bcm/InterfaceIdleMode.c:"dmem bfc02f00  100" tells how many time device went in Idle mode.
+drivers/staging/rtl8723au/hal/rtl8723a_bt-coexist.c:			/*  record how many time downgrad WiFi duration */
+drivers/staging/rtl8723au/hal/rtl8723a_bt-coexist.c:		/*  record how many time downgrad WiFi duration */
+fs/ubifs/dir.c:	 * difficult to tell how many block a directory takes - it actually
+fs/befs/datastream.c:	that we can directly calculate how many block runs into the
+
+
+### Typo:  You should normally N here,
+### Regex: grep -Pir 'You should normally N here'
+arch/unicore32/Kconfig.debug:	  with klogd/syslogd or the X server. You should normally N here,
+arch/x86/Kconfig.debug:	  with klogd/syslogd or the X server. You should normally N here,
+arch/x86/Kconfig.debug:	  with klogd/syslogd or the X server. You should normally N here,
+arch/tile/Kconfig.debug:	  with klogd/syslogd. You should normally N here,
+arch/arc/Kconfig.debug:	  with klogd/syslogd or the X server. You should normally N here,
+
+
+### Typo:  these function <verb>
+### Regex: grep -Pir 'these function (?!as |by |pointers|names|signatures|calls)'
+arch/m68k/math-emu/fp_entry.S:	| directly here, these function may only be called from within
+arch/arm/plat-samsung/include/plat/keypad-core.h:/* These function are only for use with the core support code, such as
+drivers/misc/sgi-gru/grukservices.h: * These function allow the user to create a message queue for
+drivers/video/fbdev/via/via_utility.h:/* These function are used to access gamma table */
+drivers/staging/rtl8192u/ieee80211/ieee80211_module.c://These function were added to load crypte module autoly
+sound/sparc/dbri.c: * These function operate on a 32-bit field, no matter how large
+
+
+### Typo:  this functions <verb>
+### Regex: grep -Pir 'this functions (?!as |by )'
+mm/zsmalloc.c: * have. This functions inserts the given zspage into the freelist
+arch/mips/math-emu/cp1emu.c: * This functions translates a 32-bit microMIPS instruction
+arch/s390/kernel/crash_dump.c: * For the kdump reserved memory this functions performs a swap operation:
+arch/s390/kernel/crash_dump.c: * For the kdump reserved memory this functions performs a swap operation:
+arch/x86/kernel/apic/apic.c: * In this functions we calibrate APIC bus clocks to the external timer.
+arch/x86/kernel/head.c: * This functions is deliberately very conservative.  Losing
+arch/x86/kernel/tsc.c: * This functions uses delayed work over a period of a
+arch/powerpc/kernel/l2cr_6xx.S:		to assume the user of this functions knows what they
+kernel/time/timekeeping.c: * This functions accumulates a shifted interval of cycles into
+include/net/pkt_cls.h: * This functions replaces the ematch tree in @dst with the ematch
+Documentation/security/keys.txt:     This functions attempts to install the calling process's session keyring
+Documentation/DocBook/scsi.xml:   <parameter>cmnd</parameter> is ignored and this functions sets up a REQUEST_SENSE command
+Documentation/DocBook/kernel-api.xml:   If <parameter>major</parameter> == 0 this functions will dynamically allocate a major and return
+Documentation/DocBook/filesystems.xml:   This functions creates the following sysfs symlinks.
+Documentation/DocBook/libata.xml:   some controllers after hot unplugging, this functions waits
+Documentation/DocBook/libata.xml:   Complete in-flight commands.  This functions is meant to be
+Documentation/DocBook/mtdnand.xml:   This functions performs a few sanity checks on the bad block description
+Documentation/DocBook/drm.xml:   This functions inserts an already set-up drm_mm_node into the allocator,
+Documentation/DocBook/drm.xml:   Note that framebuffers cannot be looked up with this functions - since those
+Documentation/DocBook/drm.xml:   This functions publishes the fb and makes it available for concurrent access
+Documentation/DocBook/drm.xml:   This functions decrements the fb's refcount and frees it if it drops to zero.
+Documentation/DocBook/drm.xml:   This functions increments the fb's refcount.
+Documentation/DocBook/drm.xml:   This functions adds enumerations to a property.
+Documentation/DocBook/drm.xml:   This functions sets a given property on a given object. This function only
+Documentation/DocBook/drm.xml:   This functions sets a given property on a given plane object. This function
+Documentation/DocBook/drm.xml:   This functions calls all the crtc's, encoder's and connector's -&gt;reset
+Documentation/DocBook/drm.xml:   This functions adds all the available connectors for use with the given
+Documentation/DocBook/drm.xml:   This functions restores the vblank interrupt state captured with
+Documentation/DocBook/drm.xml:   This functions restores the vblank interrupt state captured with
+tools/perf/arch/arm/tests/regs_load.S: * This functions fills in the 'regs' buffer from the actual registers values,
+drivers/input/serio/xilinx_ps2.c: * If there is any data available in the PS/2 receiver, this functions reads
+drivers/base/dd.c: * This functions moves all devices from the pending list to the active
+drivers/base/power/common.c: * This functions will reverse the actions from dev_pm_domain_attach() and thus
+drivers/misc/vmw_vmci/vmci_queue_pair.c: * This functions handles the actual allocation of a VMCI queue
+drivers/scsi/libfc/fc_lport.c: * Locking Note: This functions should not be called with the
+drivers/scsi/scsi_error.c: * @cmnd is ignored and this functions sets up a REQUEST_SENSE command
+drivers/gpu/drm/drm_irq.c: * This functions restores the vblank interrupt state captured with
+drivers/gpu/drm/drm_irq.c: * This functions restores the vblank interrupt state captured with
+drivers/gpu/drm/drm_mm.c: * This functions inserts an already set-up drm_mm_node into the allocator,
+drivers/gpu/drm/i915/i915_gem_evict.c: * This functions tries to evict all gem objects from all address spaces. Used
+drivers/gpu/drm/drm_crtc.c: * Note that framebuffers cannot be looked up with this functions - since those
+drivers/gpu/drm/drm_crtc.c: * This functions publishes the fb and makes it available for concurrent access
+drivers/gpu/drm/drm_crtc.c: * This functions decrements the fb's refcount and frees it if it drops to zero.
+drivers/gpu/drm/drm_crtc.c: * This functions increments the fb's refcount.
+drivers/gpu/drm/drm_crtc.c: * This functions adds enumerations to a property.
+drivers/gpu/drm/drm_crtc.c: * This functions sets a given property on a given object. This function only
+drivers/gpu/drm/drm_crtc.c: * This functions sets a given property on a given plane object. This function
+drivers/gpu/drm/drm_crtc.c: * This functions calls all the crtc's, encoder's and connector's ->reset
+drivers/gpu/drm/vmwgfx/vmwgfx_drv.c: * This functions tries to determine the IOMMU setup and what actions
+drivers/gpu/drm/drm_fb_helper.c: * This functions adds all the available connectors for use with the given
+drivers/ata/libata-core.c: *	some controllers after hot unplugging, this functions waits
+drivers/ata/libata-core.c: *	Complete in-flight commands.  This functions is meant to be
+drivers/spi/spi-davinci.c: * davinci_spi_setup_transfer - This functions will determine transfer method
+drivers/spi/spi-davinci.c: * davinci_spi_setup - This functions will set default transfer method
+drivers/spi/spi-davinci.c: * This functions sets the default transfer method.
+drivers/auxdisplay/ks0108.c: *   You _should_ lock in the top driver: This functions _should not_
+drivers/media/pci/zoran/zr36060.c:   this functions are accessed by the master via the API structure
+drivers/media/pci/zoran/zr36050.c:   this functions are accessed by the master via the API structure
+drivers/media/pci/zoran/videocodec.h:   the slave is bound to it). Otherwise it doesn't need this functions and
+drivers/media/pci/zoran/zr36016.c:   this functions are accessed by the master via the API structure
+drivers/media/tuners/mt2060.c:/* This functions tries to identify a MT2060 tuner by reading the PART/REV register. This is hasty. */
+drivers/media/tuners/mc44s803.c:/* This functions tries to identify a MC44S803 tuner by reading the ID
+drivers/media/platform/davinci/vpfe_capture.c: * For a given standard, this functions sets up the default
+drivers/media/platform/s5p-tv/mixer_video.c:/* FIXME: try to put this functions to mxr_base_layer_create */
+drivers/media/usb/uvc/uvc_video.c: * already been processed by uvc_video_decode_start, this functions isn't
+drivers/media/usb/stk1160/stk1160-video.c:	/* Current buffer must be NULL when this functions gets called */
+drivers/media/common/saa7146/saa7146_i2c.c:/* this functions loops through all i2c-messages. normally, it should determine
+drivers/media/common/saa7146/saa7146_i2c.c:/* this functions resets the i2c-device and returns 0 if everything was fine, otherwise -1 */
+drivers/media/common/saa7146/saa7146_i2c.c:/* this functions writes out the data-byte 'dword' to the i2c-device.
+drivers/rtc/interface.c: * This functions is called when the aie_timer expires.
+drivers/rtc/interface.c: * This functions is called when the uie_timer expires.
+drivers/i2c/busses/i2c-st.c: * This functions fills the Tx FIFO with I2C transfert buffer when
+drivers/i2c/busses/i2c-st.c: * This functions fills the Tx FIFO with fixed pattern when
+drivers/i2c/busses/i2c-designware-core.c: * This functions configures and enables the I2C master.
+drivers/s390/scsi/zfcp_reqlist.h: * This functions tries to find the FSF request with the specified
+drivers/isdn/hysdn/hycapi.c:This functions will also be used if the adapter has been rebooted to
+drivers/iommu/iova.c: * This functions finds an iova for a given pfn and then
+drivers/block/xen-blkback/blkback.c: * can be sure that this functions will never be called recursively.
+drivers/block/drbd/drbd_actlog.c: * This functions sleeps on al_wait. Returns 0 on success, -EINTR if interrupted.
+drivers/video/fbdev/aty/radeon_monitor.c: * This functions applyes any arch/model/machine specific fixups
+drivers/usb/renesas_usbhs/common.c:	 * This functions will be called in interrupt.
+drivers/usb/usbip/usbip_common.c: * This functions restores the padding which was removed for optimizing
+drivers/mtd/ubi/io.c: * This functions reads data which were recently written and compares it with
+drivers/mtd/mtdcore.c: *   found this functions tries to fallback to information specified in
+drivers/mtd/nand/mxc_nand.c:/* This functions is used by upper layer to checks if device is ready */
+drivers/mtd/nand/nand_bbt.c: * This functions performs a few sanity checks on the bad block description
+drivers/tty/serial/msm_serial_hs.c: * This functions puts the device into a partially active low power mode. It
+drivers/net/bonding/bond_main.c: * This functions should be called when one of the following occurs:
+drivers/net/can/flexcan.c: * this functions is entered with clocks enabled
+drivers/net/can/flexcan.c: * this functions is entered with clocks enabled
+drivers/net/can/dev.c: * This functions should be called when the device goes bus-off to
+drivers/net/ethernet/ti/tlan.c: *	This functions probes for EISA devices and calls
+drivers/net/ethernet/ti/tlan.c: *	This functions reads all the internal status registers
+drivers/net/ethernet/ti/tlan.c: *	This functions syncs all PHYs in terms of the MII configuration
+drivers/net/ethernet/ti/tlan.c:data sheet.  I don't know how well this functions will work with
+drivers/net/wireless/mwifiex/11h.c:/* This functions processes TLV buffer for a pending BSS Join command.
+drivers/net/wireless/mwifiex/wmm.c:/* This functions rotates ra and bss lists so packets are picked round robin.
+drivers/net/wireless/rsi/rsi_91x_pkt.c: * rsi_send_mgmt_pkt() - This functions sends the received management packet
+drivers/net/wireless/rsi/rsi_91x_core.c: * rsi_core_queue_pkt() - This functions enqueues the packet to the queue
+drivers/net/wireless/rsi/rsi_91x_core.c: * rsi_core_dequeue_pkt() - This functions dequeues the packet from the queue
+drivers/net/wireless/zd1211rw/zd_mac.c: * This functions looks for ACK packets and tries to match them with the
+drivers/net/wireless/iwlwifi/mvm/time-event.h: * This functions cancels the session protection which is an act of good
+drivers/memory/ti-aemif.c:	 * describe the bus configuration parameters. This functions iterate
+net/ipx/af_ipx.c:/* This functions should *not* mess with packet contents */
+net/sched/ematch.c: * This functions destroys an ematch tree previously created by
+sound/core/pcm_native.c: *  this functions is core for handling of linked stream
+sound/soc/intel/sst/sst_drv_interface.c: * This functions registers DSP with the platform driver
+sound/soc/cirrus/ep93xx-ac97.c:	 * We are assuming that before this functions gets called, the codec
+sound/soc/soc-ops.c: * This functions reads a codec register. The register value is shifted right
+sound/usb/clock.c: * clock source input to terminal. This functions walks the clock path
+sound/usb/endpoint.c: * If the endpoint is not currently in use, this functions will
+sound/usb/endpoint.c: * In case of any active users, this functions does nothing.
+fs/dcache.c:		 * only ever occur through this functions or through callbacks
+fs/ubifs/log.c: * This functions returns the wbuf for @lnum or %NULL if there is not one.
+fs/ubifs/recovery.c: * This functions returns %0 on success and a negative error code on failure.
+fs/ubifs/recovery.c: * This functions returns %0 on success and a negative error code on failure.
+fs/ubifs/tnc.c: * This functions returns %0 on success or a negative error code on failure.
+fs/ubifs/tnc.c: * This functions returns %0 on success or a negative error code on failure.
+fs/ubifs/tnc.c: * This functions reads and validates the data nodes that were identified by the
+fs/ubifs/tnc.c: * 'ubifs_tnc_get_bu_keys()' function. This functions returns %0 on success,
+fs/ubifs/tnc_commit.c: * This functions frees the surplus.
+fs/ubifs/lpt.c: * This functions returns the value unpacked.
+fs/hfs/bitmap.c: *   may be no longer free, when this functions returns!
+fs/char_dev.c: * If major == 0 this functions will dynamically allocate a major and return
+fs/char_dev.c: * If @major == 0 this functions will dynamically allocate a major and return
+fs/quota/dquot.c: * This functions updates i_blocks+i_bytes fields and quota information
+fs/block_dev.c: * This functions creates the following sysfs symlinks.
+fs/ufs/util.h:/* This functions works with cache pages*/
+
+
+### Typo:  this <plural_count_noun>
+### Regex: grep -PIir 'this (macros|structures|structs|arrays|packets|codes(?! heavily)|drivers|sections|methods) '
+arch/x86/kernel/vmlinux.lds: * Note that this macros defines __per_cpu_load as an absolute symbol.
+arch/x86/boot/compressed/vmlinux.lds: * Note that this macros defines __per_cpu_load as an absolute symbol.
+include/asm-generic/vmlinux.lds.h: * Note that this macros defines __per_cpu_load as an absolute symbol.
+Documentation/DocBook/drm.tmpl:	This sections covers all things related to the GEM implementation in the
+Documentation/DocBook/drm.xml:	This sections covers all things related to the GEM implementation in the
+Documentation/isdn/HiSax.cert:Please send any questions regarding this drivers or approval abouts to 
+Documentation/s390/cds.txt:This methods implies that Linux/390 doesn't require to probe for free (not
+drivers/input/mouse/focaltech.c: * The Focaltech PS/2 touchpad protocol is unknown. This drivers deals with
+drivers/scsi/megaraid/megaraid_mbox.h: * NOTE: The fields of this structures are placed to minimize cache misses
+drivers/scsi/megaraid/mbox_defs.h: * This structures holds the information about the controller which is not
+drivers/scsi/megaraid/mega_common.h: * NOTE: The fields of this structures are placed to minimize cache misses
+drivers/spi/Kconfig:	  This drivers supports the MPC52xx SPI controller in master SPI
+drivers/rtc/Kconfig:	  This drivers makes such sensors available as RTCs.
+drivers/rtc/rtc-m48t86.c: * This drivers only supports the clock running in BCD and 24H mode.
+drivers/video/fbdev/Kconfig:	  This drivers creates I2C buses which are needed for accessing the
+drivers/usb/image/mdc800.c:/* File Operations of this drivers */
+drivers/mtd/devices/docg3.c: * As no specification is available from M-Systems/Sandisk, this drivers lacks
+drivers/edac/i5400_edac.c:	 * This drivers uses the DIMM slot as "csrow" and the rest as "channel".
+drivers/net/ethernet/amd/atarilance.c:	This drivers was written with the following sources of reference:
+drivers/net/ethernet/broadcom/bnx2x/bnx2x_init_ops.h: * This codes hides the low level HW interaction for ILT management and
+drivers/net/wireless/iwlwifi/dvm/dev.h: * This structs holds the states for the BA agreement establishment and tear
+drivers/net/wireless/iwlwifi/dvm/dev.h: * This structs holds the states for each RA / TID.
+drivers/staging/xgifb/TODO:This drivers still needs a lot of work. I can list all cleanups to do but it's
+drivers/staging/lustre/lustre/libcfs/nidstrings.c:	 * Link to list of this structures which is built on nid range
+drivers/staging/lustre/lustre/include/cl_object.h:		 * this iteration. This methods shouldn't actually enqueue
+drivers/virtio/Kconfig:	  This drivers provides support for virtio based paravirtual device
+drivers/virtio/Kconfig: 	 This drivers provides support for memory mapped virtio
+net/mac80211/agg-tx.c:	 * After this packets are no longer handed right through
+sound/pci/cs46xx/cs46xx_dsp_scb_types.h:/* This structs are used internally by the SP */
+sound/firewire/oxfw/oxfw-hwdep.c: * This codes give three functionality.
+sound/firewire/bebob/bebob_hwdep.c: * This codes give three functionality.
+sound/firewire/fireworks/fireworks_hwdep.c: * This codes have five functionalities.
+fs/ufs/ufs_fs.h: * Sizes of this structures are:
+
+### Typo:  their
+### Regex: grep -PIir 'their (is|was|as|does|exists|has|seems|appears|happens) '
+kernel/irq/autoprobe.c: *	their is doubt.
+drivers/isdn/i4l/isdn_ppp.c:   rather simple in their reset handling. Especially, their is only one
+
+### Shots in the dark
+drivers/net/wireless/ath/ath6kl/sdio.c:		 * flag as MMC_PM_WAKE_SDIO_IRQ to allow SDCC deiver to disable
+

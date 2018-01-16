@@ -1,0 +1,105 @@
+#################################################################################################
+### NEW ONES, WAY LATER, AFTER I GOT DISTRACTED BY GRAD SCHOOL AND BMC PUBLICATION (20161122) ###
+#################################################################################################
+# /drivers/char/random.c
+speed -> sped
+Change:
+ * discussions with Phil Karn.  Colin Plumb provided a faster random
+ * number generator, which speed up the mixing function of the entropy
+To:
+ * discussions with Phil Karn.  Colin Plumb provided a faster random
+ * number generator, which sped up the mixing function of the entropy
+
+###################################################################
+### OLD ONES FROM MY ORIGINAL KERNEL LEARNING DAYS BACK IN 2014 ###
+###################################################################
+
+####################################
+### drivers/input/serio/libps2.c ###
+####################################
+/*
+ * ps2_command() sends a command and its parameters to the mouse,
+ * then waits for the response and puts it in the param array.
+ *
+ * ps2_command() can only be called from a process context
+ */
+PROBLEMS:
+(1) This function is currently used for more than just mice.
+    Change this to "...parameters to the device...", because
+    that's the wording used in the documentation for ps2_sendbyte :)
+(2) This function is currently called from interrupts
+    (e.g., the atkbd driver breaks without this)
+
+
+######################################
+### drivers/input/keyboard/atkbd.c ###
+######################################
+[*] THING #1 Functions that aren't called.
+I'm fairly confident that even with the ##'s, some of the atkbd_set_* and
+atkbd_show_* functions are never called.
+They're static, declared in one of the ##'s, (some) defined in the code body, 
+but some are never called either directly or using ##.
+Here are a few functions with this problem:
+static ssize_t atkbd_set_extra(struct atkbd *atkbd, const char *buf, size_t count)
+static ssize_t atkbd_set_scroll(struct atkbd *atkbd, const char *buf, size_t count)
+static ssize_t atkbd_set_set(struct atkbd *atkbd, const char *buf, size_t count)
+
+Why it happened: There seem to be declarations of atkbd_do_set_stuff for various
+values of stuff. At some point in the past, someone broke these features,
+and apparently no one noticed. Since this was all dead code, we can remove it.
+
+[*] THING #2: unnecessary memset(s)
+memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
+Not needed, since kzalloc is used above, and the keycode[ATKBD_KEYMAP_SIZE]
+array is embedded in the struct. Check this again in the real driver (done).
+
+[*] THING #3: (possibly) unnecessary bitmap_zero
+Right below the memset, there's this:
+bitmap_zero(atkbd->force_release_mask, ATKBD_KEYMAP_SIZE);
+This seems to be doing the same thing as the memset, unnecessarily.
+Do some research on bitmap_zero, as well as on:
+DECLARE_BITMAP(force_release_mask, ATKBD_KEYMAP_SIZE);
+which is the macro used to define force_release_mask in the atkbd struct.
+
+
+##################
+### treesweeps ###
+##################
+(1) locking:            Fixed-up my old patch. Re-send it.
+(2) unused headers:     See subdir in cwd for information.
+(3) various typos:      See subdir in cwd for information.
+(4) set_current_state:  See subdir in cwd for information.
+
+#############################
+### LESS GOOD PATCH IDEAS ###
+#############################
+
+[*] Whole tree cleanup idea
+Grep the tree for #endif's that don't have a #[ie] within the previous N lines
+Add comments to the ones you find, to say what they're ending.
+
+[*] Update Documentation/input.txt
+  This is a collection of drivers that is designed to support all input
+devices under Linux. While it is currently used only on for USB input
+devices, future use (say 2.5/2.6) is expected to expand to replace
+most of the existing input system, which is why it lives in
+drivers/input/ instead of drivers/usb/.
+
+[*] In fs/sysfs/group.c, there are two functions whose documentation says:
+"Returns 0 on success or error." These functions are trivial, so anyone 
+reading the code should be able to tell what's happening.
+However (VERIFY THIS) this may lead to confusing kernel docs.
+Change the docs to the style of sysfs_create_groups, so they now say:
+"Returns 0 on success or error code from internal_create_group on error."
+
+[*] In Documentation/memory-barriers.txt, I noticed that the first example switches A and B.
+This was actually fixed about 6 days before I noticed it.
+That's good evidence that I was right, and that this would have been a good kernel patch. :D
+
+[*] Idea: look for declarations that aren't consistent w/ definitions
+For example, misleading or swapped parameter names. Maybe minimally scriptable.
+
+[*] Reproducible ACPI bug. No idea how to fix.
+Every time I hit the screen brightness buttons, I get this in dmesg:
+[15925.171669] ACPI Error: Method parse/execution failed [\_SB_.PCI0.GFX0.UPBL] (Node ffff880216434a78), AE_AML_UNINITIALIZED_ELEMENT (20140926/psparse-536)
+[15925.171684] ACPI Error: Method parse/execution failed [\_SB_.PCI0.LPCB.EC0_._Q0F] (Node ffff880216447bb8), AE_AML_UNINITIALIZED_ELEMENT (20140926/psparse-536)

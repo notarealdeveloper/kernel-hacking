@@ -1,0 +1,1 @@
+Accept all new changes, but then revert the two branches based on !e->mask[0] and !e->magic[0]

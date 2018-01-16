@@ -1,0 +1,22 @@
+# I'm pretty confident that none of these headers
+# are ever used anywhere in the kernel.
+# Send some patches that delete them to the
+# various mailing lists, once we're out of
+# the merge window.
+
+arch/arm/mach-omap2/scrm54xx.h
+arch/arm/mach-omap2/ctrl_module_wkup_44xx.h
+arch/arm/mach-omap2/sdram-qimonda-hyb18m512160af-6.h
+arch/arm/mach-omap2/sdram-numonyx-m65kxxxxam.h
+arch/arm/mach-omap2/sdram-hynix-h8mbx00u0mer-0em.h
+
+drivers/media/dvb-frontends/drx39xyj/bsp_i2c.h
+drivers/crypto/caam/pdb.h
+
+sound/soc/codecs/ts3a227e.h
+
+drivers/staging/rtl8192e/rtllib_crypt.h
+drivers/staging/rtl8192e/rtl8192e/rtl_crypto.h
+drivers/staging/rtl8192e/rtl8192e/r819xE_phyreg.h
+drivers/staging/rtl8712/rtl871x_wlan_sme.h
+drivers/staging/wlan-ng/p80211meta.h

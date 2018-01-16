@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# check for references to nonexistent files
+for f in kernel/locking/*.c; do grep -r "kernel/$(basename $f)" .; done
+for f in kernel/locking/*.h; do grep -r "kernel/$(basename $f)" .; done
+
+# references to .c files
+sed -i 's@kernel/lockdep.c@kernel/locking/lockdep.c@' 		kernel/locking/lockdep.c
+sed -i 's@kernel/lockdep_proc.c@kernel/locking/lockdep_proc.c@' kernel/locking/lockdep_proc.c
+sed -i 's@kernel/mutex-debug.c@kernel/locking/mutex-debug.c@' 	kernel/locking/mutex-debug.h
+sed -i 's@kernel/mutex-debug.c@kernel/locking/mutex-debug.c@' 	kernel/locking/mutex-debug.c
+sed -i 's@kernel/rwsem.c@kernel/locking/rwsem.c@' 		kernel/locking/rwsem.c
+sed -i 's@kernel/semaphore.c@kernel/locking/semaphore.c@' 	include/linux/semaphore.h
+sed -i 's@kernel/spinlock.c@kernel/locking/spinlock.c@'         include/linux/rwlock_api_smp.h
+sed -i 's@kernel/spinlock.c@kernel/locking/spinlock.c@'         include/linux/spinlock_api_smp.h
+sed -i 's@kernel/lockdep.c@kernel/locking/lockdep.c@'           tools/perf/builtin-lock.c
+
+# references to .h files
+sed -i 's@kernel/lockdep_internals.h@kernel/locking/lockdep_internals.h@' kernel/locking/lockdep_internals.h
+sed -i 's@kernel/lockdep_states.h@kernel/locking/lockdep_states.h@'       include/linux/lockdep.h
+sed -i 's@kernel/lockdep_states.h@kernel/locking/lockdep_states.h@'       Documentation/locking/lockdep-design.txt
+
+# then delete the line in kernel/locking/rwsem-xadd.c that says:
+# * Derived from arch/i386/kernel/semaphore.c
+
+exit
+
+# Stuff below this is the commit message.
+locking: Fix dangling references to nonexistent files
+
+Commit e25a64c4017e3a3 (and others in the same series) moved the
+locking code to kernel/locking/. This patch just updates various
+docs and comments (e.g., "see kernel/semaphore.c for documentation")
+to refer to the new locations.

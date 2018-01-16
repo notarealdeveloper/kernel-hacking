@@ -1,0 +1,17 @@
+# A helpful one-liner (vary the 4 to make it helpful)
+git show $(git log --pretty=oneline -- fs/binfmt_misc.c | head -n 4 | jn | cut -d" " -f1) | grep "[!]e->"
+
+# Get the commit that fucked up the binfmt stuff
+git log --pretty=oneline -- fs/binfmt_misc.c | head -n 4 | jn
+
+# See the actual patch of the commit that messed things up. It's from Dec 10, so we're good to go!
+git show `git log --pretty=oneline -- fs/binfmt_misc.c | head -n 4 | jn | cut -d" " -f1`
+
+# Output of get_maintainer applied to fs/binfmt_misc.c
+Alexander Viro <viro@zeniv.linux.org.uk> (maintainer:FILESYSTEMS (VFS...)
+linux-fsdevel@vger.kernel.org (open list:FILESYSTEMS (VFS...)
+linux-kernel@vger.kernel.org (open list)
+
+# The author of the patch that broke systemd was this guy (at gentoo)
+# so it makes sense that he doesn't use systemd! :D
+Author: Mike Frysinger <vapier@gentoo.org>

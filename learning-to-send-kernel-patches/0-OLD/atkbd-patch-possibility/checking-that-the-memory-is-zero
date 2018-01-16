@@ -1,0 +1,10 @@
+#!/bin/bash
+
+sudo true &&
+kernel-build &&
+sudo dmesg -C &&
+sudo rmmod atkbd &&
+sleep 1 &&
+sudo modprobe atkbd &&
+sleep 1 &&
+dmesg

@@ -1,0 +1,18 @@
+scripts/get_maintainer.pl -f drivers/input/keyboard/atkbd.c
+
+# In my kernel.org kernel in /usr/src/linux, this gives
+scripts/get_maintainer.pl: No supported VCS found.  Add --nogit to options?
+Using a git repository produces better results.
+Try Linus Torvalds' latest git repository using:
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+Dmitry Torokhov <dmitry.torokhov@gmail.com> (maintainer:INPUT (KEYBOARD,...)
+linux-input@vger.kernel.org (open list:INPUT (KEYBOARD,...)
+linux-kernel@vger.kernel.org (open list)
+
+# In a properly git clone'd kernel, this gives:
+Dmitry Torokhov <dmitry.torokhov@gmail.com> (maintainer:INPUT (KEYBOARD,...,commit_signer:2/2=100%,authored:1/2=50%,removed_lines:8/9=89%)
+Sheng-Liang Song <ssl@chromium.org> (commit_signer:1/2=50%,authored:1/2=50%,added_lines:28/28=100%,removed_lines:1/9=11%)
+linux-input@vger.kernel.org (open list:INPUT (KEYBOARD,...)
+linux-kernel@vger.kernel.org (open list)
+
+# Also, remember to run checkpatch (after you've done some more research to make sure you're not just being stupid).

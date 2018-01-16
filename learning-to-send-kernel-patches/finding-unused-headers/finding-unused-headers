@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# A few trivial, but unused struct members.
+# grep -r usbhs_regs
+arch/mips/include/asm/mach-pmcs-msp71xx/msp_usb.h:struct msp_usbhs_regs {
+arch/mips/include/asm/mach-pmcs-msp71xx/msp_usb.h:	struct msp_usbhs_regs __iomem *usbhs_regs;
+
+### ACTUAL UNUSED CODE ###
+
+# Stupid shit (looking for unused headers)
+grep -PIr '#[ \t]*include[ \t]*[<"][^>"]*[>"][ \t]*$' /usr/src/linux | cut -d: -f2 > includes
+cat includes | sort | uniq | grep '^#'
+cat includes | sort | uniq | grep '^#' | grep -Po '(?<=<).*(?=>)' >  includes-used
+cat includes | sort | uniq | grep '^#' | grep -Po '(?<=").*(?=")' >> includes-used
+
+# Trying to find unused headers: Best candidates are includes in unusual places
+localincludes=($(find -L /usr/src/linux -name "*.h" | grep -v include))
+possibly_unused_headers=()
+for f in ${localincludes[@]}; do
+    bn="$(basename "$f")"
+    dn="$(dirname  "$f")"
+    grep -Pr "[ \t]*#[ \t]*include.*${bn}.*" "$dn" >/dev/null || {
+        echo "POSSIBLY UNUSED HEADER: ${dn}/${bn}"
+        possibly_unused_headers+=("${dn}/${bn}")
+    }
+done
+
+# Now check a bit more carefully
+candidates=()
+for f in "${possibly_unused_headers[@]}"; do 
+    grep -EIr "include.*$(basename "$f")" >/dev/null || {
+        echo "SUPER GOOD CANDIDATE: ${f}"
+        candidates+=("${f}")
+    }
+done
+echo "${candidates[@]}"
+
+# Now check *really* carefully
+definites=()
+for f in "${candidates[@]}"; do 
+    grep -EIr "$(basename "$f")" >/dev/null || {
+        echo "UNUSED HEADER: ${f}"
+        definites+=("${f}")
+    }
+done
+echo "${definites[@]}"
+
+### !!! UNUSED HEADERS !!! ###
+/usr/src/linux/arch/arm/mach-omap2/scrm54xx.h
+/usr/src/linux/arch/arm/mach-omap2/ctrl_module_wkup_44xx.h
+/usr/src/linux/arch/arm/mach-omap2/sdram-qimonda-hyb18m512160af-6.h
+/usr/src/linux/arch/arm/mach-omap2/sdram-numonyx-m65kxxxxam.h
+/usr/src/linux/arch/arm/mach-omap2/sdram-hynix-h8mbx00u0mer-0em.h
+
+/usr/src/linux/drivers/media/dvb-frontends/drx39xyj/bsp_i2c.h
+/usr/src/linux/drivers/crypto/caam/pdb.h
+
+/usr/src/linux/sound/soc/codecs/ts3a227e.h
+
+/usr/src/linux/drivers/staging/rtl8192e/rtllib_crypt.h
+/usr/src/linux/drivers/staging/rtl8192e/rtl8192e/rtl_crypto.h
+/usr/src/linux/drivers/staging/rtl8192e/rtl8192e/r819xE_phyreg.h
+/usr/src/linux/drivers/staging/rtl8712/rtl871x_wlan_sme.h
+/usr/src/linux/drivers/staging/wlan-ng/p80211meta.h
+
+
+### QUESTIONABLE ONES ###
+
+# These *may* be used
+# Some of those xml.h files are only referenced in strings
+# that have some guy's home directory in them... o_O
+/usr/src/linux/drivers/gpu/drm/exynos/exynos_drm_rotator.h	# found: exynos_drm_rotator.o
+/usr/src/linux/drivers/gpu/drm/msm/dsi/dsi.xml.h		# something *weird* is going on in drivers/gpu/drm/msm
+/usr/src/linux/drivers/gpu/drm/msm/dsi/mmss_cc.xml.h
+/usr/src/linux/drivers/gpu/drm/msm/dsi/sfpb.xml.h
+/usr/src/linux/drivers/gpu/drm/msm/hdmi/qfprom.xml.h
+/usr/src/linux/drivers/gpu/drm/msm/adreno/a2xx.xml.h
+
+# Here are some weird ones. These are probably being used.
+# There's a pretty active mailing list about them.
+frontends=($(cat << _EOF_
+/usr/src/linux/drivers/media/dvb-frontends/stb0899_cfg.h
+/usr/src/linux/drivers/media/dvb-frontends/tda8261_cfg.h
+/usr/src/linux/drivers/media/dvb-frontends/mn88472.h
+/usr/src/linux/drivers/media/dvb-frontends/bsru6.h
+/usr/src/linux/drivers/media/dvb-frontends/bsbe1-d01a.h
+/usr/src/linux/drivers/media/dvb-frontends/eds1547.h
+/usr/src/linux/drivers/media/dvb-frontends/z0194a.h
+/usr/src/linux/drivers/media/dvb-frontends/stb6100_proc.h
+/usr/src/linux/drivers/media/dvb-frontends/tdhd1.h
+/usr/src/linux/drivers/media/dvb-frontends/drx39xyj/bsp_i2c.h
+/usr/src/linux/drivers/media/dvb-frontends/mn88473.h
+/usr/src/linux/drivers/media/dvb-frontends/bsbe1.h
+/usr/src/linux/drivers/media/dvb-frontends/stb6100_cfg.h
+_EOF_
+))
+for f in "${frontends[@]}"; do grep -Ir $(basename "$f"); done
+
+
+# I don't think this is used, but something weird 
+# is going on with it in the scripts directory
+/usr/src/linux/arch/arm/boot/compressed/libfdt_env.h
+
+

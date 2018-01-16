@@ -1,0 +1,14 @@
+########################
+### fs/binfmt_misc.c ###
+########################
+Accept all new changes, but then revert the two branches that used
+to use !e->mask[0] and !e->magic[0] to the old forms. They worked.
+Here's a skeleton commit message:
+
+    fs: binfmt_misc: fix regression with systemd
+
+    Systemd fails to start binfmt.service after the recent
+    changes to fs/binfmt_misc.c. This reverts the changes
+    that cause those regressions, while keeping everything else.
+
+    Signed-off-by: Jason Wilkes <letshaveanadventure@gmail.com>

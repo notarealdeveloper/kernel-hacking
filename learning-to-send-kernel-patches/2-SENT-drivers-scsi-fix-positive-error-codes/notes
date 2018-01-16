@@ -1,0 +1,45 @@
+# At a few places in the kernel, we see "return ERRCODE;" instead of "return -ERRCODE;"
+# Some of these are probably only used as internal signals to other functions in the same module,
+# so everything is fine as long as the return code is consistent with the return code check.
+# However, some of these are probably returning to higher layers within the kernel (driver core, etc.)
+# in which case the errors are *not* being handled properly. Check some of these in more detail eventually,
+# and see whether they are actually errors. Also, maybe ask about it on a mailing list, either LKML or 
+# perhaps a less scary one.
+
+# In the regex below, I determined that ERROR, etc. were not error codes using:
+grep ERROR include/uapi/asm-generic/errno*.h
+
+grep -Pr 'return[ \t]+(?!EOF|END|ERR|ERROR|EEPROMSIZE|ECARDGONE|ECCSFULL|ECCSBUSY|EDUPLICATE)E[A-Z]+;'
+grep -Pr 'return[ \t]+[(]?E[A-Z]+[)]?;'
+
+# Also note: The results from net/bluetooth/lib.c are correct,
+# because they're in a function that maps bluetooth error codes
+# to unix error codes, and that function is called with a negative
+# sign, e.g., return -bt_to_errno(rp->status); in drivers/bluetooth/btusb.c
+
+# Final note: The positive return codes in drivers/staging/lustre/lnet/lnet/lib-move.c
+# seem to be being used in an okay way. For example, +ENOENT is used to signal
+# that an operation succeeded, but no match was found.
+
+#########################################
+### Here are the remaining candidates ###
+#########################################
+arch/powerpc/platforms/pseries/cmm.c:		return ENOMEM;
+include/net/inet_hashtables.h:			return ENOMEM;
+drivers/scsi/aic7xxx/aic7xxx_osm.c:		return ENOMEM;
+drivers/gpu/drm/qxl/qxl_prime.c:		return ENOSYS;
+drivers/xen/xenbus/xenbus_xs.c:			return EINVAL;
+
+
+====================================================================
+Scratch space:
+
+git send-email  --to hare@suse.de 			\
+		--cc JBottomley@parallels.com		\
+		--cc linux-scsi@vger.kernel.org 	\
+		--cc linux-kernel@vger.kernel.org 	\
+		--cc letshaveanadventure@gmail.com 	\
+		0001-drivers-scsi-aic7xxx-Fix-positive-error-codes.patch
+
+
+git send-email --to hare@suse.de --cc JBottomley@parallels.com --cc linux-scsi@vger.kernel.org --cc linux-kernel@vger.kernel.org --cc letshaveanadventure@gmail.com 0001-drivers-scsi-aic7xxx-Fix-positive-error-codes.patch

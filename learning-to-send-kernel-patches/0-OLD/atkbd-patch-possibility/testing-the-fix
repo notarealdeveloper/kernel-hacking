@@ -1,0 +1,16 @@
+/* Not needed, since kzalloc is used above, and the keycode[ATKBD_KEYMAP_SIZE] array is embedded in the struct */
+// memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
+
+/* Experimenting to make sure the above memset isn't actually needed */
+
+/*
+mystruct = kzalloc(sizeof(struct mystruct), GFP_KERNEL);
+printk("sizeof(struct mystruct) == %ld\n", sizeof(struct mystruct));
+
+memset(mystruct, 0xff, sizeof(struct mystruct));
+memset(mystruct->bytes, 0x69, sizeof(mystruct->bytes));
+for (i = 0; i < sizeof(*mystruct); i++)
+	printk("*(mystruct+%d) == %02x\n", i, *((unsigned char *)mystruct+i));
+
+kfree(mystruct);
+*/

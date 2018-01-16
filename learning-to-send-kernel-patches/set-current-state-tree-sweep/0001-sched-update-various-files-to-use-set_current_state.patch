@@ -1,0 +1,483 @@
+From 48522801db2ba59b320df9447b963882c91813fb Mon Sep 17 00:00:00 2001
+From: Jason Wilkes <letshaveanadventure@gmail.com>
+Date: Mon, 1 Dec 2014 14:35:55 -0800
+Subject: [PATCH] sched: update various files to use set_current_state
+
+From Linux Device Drivers (3rd edition), pg 155:
+
+"...should you need to [manipulate the process state directly], the call to use is:
+void set_current_state(int new_state);
+In older code, you often see something like this instead:
+current->state = TASK_INTERRUPTIBLE;
+But changing current directly in that manner is discouraged;
+such code breaks easily when data structures change."
+
+This patch changes various files throughout the tree to use
+set_current_state, instead of setting current->state directly.
+
+Granted, current->state has been around for awhile, so the
+above-mentioned problem of changing data structures may not
+be a problem in this particular case. Still, using set_current_state
+also adds a memory barrier to the set operation, which may be helpful.
+
+Note: I'm new to kernel development, and just doing it as a hobby,
+so please assume that I'm a complete moron, because I probably am.
+Apologies in advance if this patch is obviously stupid. :-)
+
+Signed-off-by: Jason Wilkes <letshaveanadventure@gmail.com>
+---
+ arch/x86/xen/smp.c                         |  2 +-
+ drivers/block/swim.c                       |  6 +++---
+ drivers/isdn/hardware/mISDN/hfcpci.c       |  2 +-
+ drivers/macintosh/via-pmu.c                |  4 ++--
+ drivers/media/common/saa7146/saa7146_vbi.c |  4 ++--
+ drivers/net/usb/hso.c                      |  2 +-
+ drivers/net/wan/cosa.c                     | 12 ++++++------
+ drivers/net/wireless/airo.c                |  2 +-
+ drivers/staging/comedi/drivers/me_daq.c    |  2 +-
+ drivers/staging/dgnc/dgnc_utils.c          |  2 +-
+ drivers/staging/panel/panel.c              |  2 +-
+ drivers/staging/speakup/selection.c        |  2 +-
+ drivers/staging/unisys/include/timskmod.h  |  4 ++--
+ drivers/tty/serial/serial_core.c           |  2 +-
+ include/linux/jbd.h                        |  2 +-
+ include/linux/jbd2.h                       |  2 +-
+ ipc/sem.c                                  |  2 +-
+ kernel/signal.c                            |  4 ++--
+ kernel/time/timer.c                        |  2 +-
+ net/atm/signaling.c                        |  2 +-
+ net/irda/ircomm/ircomm_tty.c               |  2 +-
+ net/irda/irnet/irnet_ppp.c                 |  4 ++--
+ sound/oss/msnd_pinnacle.c                  |  4 ++--
+ sound/oss/swarm_cs4297a.c                  |  2 +-
+ 24 files changed, 37 insertions(+), 37 deletions(-)
+
+diff --git a/arch/x86/xen/smp.c b/arch/x86/xen/smp.c
+index 4c071ae..408d06d 100644
+--- a/arch/x86/xen/smp.c
++++ b/arch/x86/xen/smp.c
+@@ -507,7 +507,7 @@ static int xen_cpu_disable(void)
+ static void xen_cpu_die(unsigned int cpu)
+ {
+ 	while (xen_pv_domain() && HYPERVISOR_vcpu_op(VCPUOP_is_up, cpu, NULL)) {
+-		current->state = TASK_UNINTERRUPTIBLE;
++		set_current_state(TASK_UNINTERRUPTIBLE);
+ 		schedule_timeout(HZ/10);
+ 	}
+ 
+diff --git a/drivers/block/swim.c b/drivers/block/swim.c
+index 6b44bbe..270652d 100644
+--- a/drivers/block/swim.c
++++ b/drivers/block/swim.c
+@@ -331,7 +331,7 @@ static inline void swim_motor(struct swim __iomem *base,
+ 			swim_select(base, RELAX);
+ 			if (swim_readbit(base, MOTOR_ON))
+ 				break;
+-			current->state = TASK_INTERRUPTIBLE;
++			set_current_state(TASK_INTERRUPTIBLE);
+ 			schedule_timeout(1);
+ 		}
+ 	} else if (action == OFF) {
+@@ -350,7 +350,7 @@ static inline void swim_eject(struct swim __iomem *base)
+ 		swim_select(base, RELAX);
+ 		if (!swim_readbit(base, DISK_IN))
+ 			break;
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		schedule_timeout(1);
+ 	}
+ 	swim_select(base, RELAX);
+@@ -374,7 +374,7 @@ static inline int swim_step(struct swim __iomem *base)
+ 
+ 	for (wait = 0; wait < HZ; wait++) {
+ 
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		schedule_timeout(1);
+ 
+ 		swim_select(base, RELAX);
+diff --git a/drivers/isdn/hardware/mISDN/hfcpci.c b/drivers/isdn/hardware/mISDN/hfcpci.c
+index 3c92780..ff48da6 100644
+--- a/drivers/isdn/hardware/mISDN/hfcpci.c
++++ b/drivers/isdn/hardware/mISDN/hfcpci.c
+@@ -1755,7 +1755,7 @@ init_card(struct hfc_pci *hc)
+ 		enable_hwirq(hc);
+ 		spin_unlock_irqrestore(&hc->lock, flags);
+ 		/* Timeout 80ms */
+-		current->state = TASK_UNINTERRUPTIBLE;
++		set_current_state(TASK_UNINTERRUPTIBLE);
+ 		schedule_timeout((80 * HZ) / 1000);
+ 		printk(KERN_INFO "HFC PCI: IRQ %d count %d\n",
+ 		       hc->irq, hc->irqcnt);
+diff --git a/drivers/macintosh/via-pmu.c b/drivers/macintosh/via-pmu.c
+index dee88e5..6a7144d 100644
+--- a/drivers/macintosh/via-pmu.c
++++ b/drivers/macintosh/via-pmu.c
+@@ -2109,7 +2109,7 @@ pmu_read(struct file *file, char __user *buf,
+ 
+ 	spin_lock_irqsave(&pp->lock, flags);
+ 	add_wait_queue(&pp->wait, &wait);
+-	current->state = TASK_INTERRUPTIBLE;
++	set_current_state(TASK_INTERRUPTIBLE);
+ 
+ 	for (;;) {
+ 		ret = -EAGAIN;
+@@ -2138,7 +2138,7 @@ pmu_read(struct file *file, char __user *buf,
+ 		schedule();
+ 		spin_lock_irqsave(&pp->lock, flags);
+ 	}
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	remove_wait_queue(&pp->wait, &wait);
+ 	spin_unlock_irqrestore(&pp->lock, flags);
+ 	
+diff --git a/drivers/media/common/saa7146/saa7146_vbi.c b/drivers/media/common/saa7146/saa7146_vbi.c
+index 1e71e37..cb6e906 100644
+--- a/drivers/media/common/saa7146/saa7146_vbi.c
++++ b/drivers/media/common/saa7146/saa7146_vbi.c
+@@ -95,7 +95,7 @@ static int vbi_workaround(struct saa7146_dev *dev)
+ 
+ 		/* prepare to wait to be woken up by the irq-handler */
+ 		add_wait_queue(&vv->vbi_wq, &wait);
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 
+ 		/* start rps1 to enable workaround */
+ 		saa7146_write(dev, RPS_ADDR1, dev->d_rps1.dma_handle);
+@@ -106,7 +106,7 @@ static int vbi_workaround(struct saa7146_dev *dev)
+ 		DEB_VBI("brs bug workaround %d/1\n", i);
+ 
+ 		remove_wait_queue(&vv->vbi_wq, &wait);
+-		current->state = TASK_RUNNING;
++		set_current_state(TASK_RUNNING);
+ 
+ 		/* disable rps1 irqs */
+ 		SAA7146_IER_DISABLE(dev,MASK_28);
+diff --git a/drivers/net/usb/hso.c b/drivers/net/usb/hso.c
+index babda7d..535e84e 100644
+--- a/drivers/net/usb/hso.c
++++ b/drivers/net/usb/hso.c
+@@ -1581,7 +1581,7 @@ hso_wait_modem_status(struct hso_serial *serial, unsigned long arg)
+ 		}
+ 		cprev = cnow;
+ 	}
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	remove_wait_queue(&tiocmget->waitq, &wait);
+ 
+ 	return ret;
+diff --git a/drivers/net/wan/cosa.c b/drivers/net/wan/cosa.c
+index 83c39e2..605af38 100644
+--- a/drivers/net/wan/cosa.c
++++ b/drivers/net/wan/cosa.c
+@@ -806,21 +806,21 @@ static ssize_t cosa_read(struct file *file,
+ 	spin_lock_irqsave(&cosa->lock, flags);
+ 	add_wait_queue(&chan->rxwaitq, &wait);
+ 	while (!chan->rx_status) {
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		spin_unlock_irqrestore(&cosa->lock, flags);
+ 		schedule();
+ 		spin_lock_irqsave(&cosa->lock, flags);
+ 		if (signal_pending(current) && chan->rx_status == 0) {
+ 			chan->rx_status = 1;
+ 			remove_wait_queue(&chan->rxwaitq, &wait);
+-			current->state = TASK_RUNNING;
++			set_current_state(TASK_RUNNING);
+ 			spin_unlock_irqrestore(&cosa->lock, flags);
+ 			mutex_unlock(&chan->rlock);
+ 			return -ERESTARTSYS;
+ 		}
+ 	}
+ 	remove_wait_queue(&chan->rxwaitq, &wait);
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	kbuf = chan->rxdata;
+ 	count = chan->rxsize;
+ 	spin_unlock_irqrestore(&cosa->lock, flags);
+@@ -890,14 +890,14 @@ static ssize_t cosa_write(struct file *file,
+ 	spin_lock_irqsave(&cosa->lock, flags);
+ 	add_wait_queue(&chan->txwaitq, &wait);
+ 	while (!chan->tx_status) {
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		spin_unlock_irqrestore(&cosa->lock, flags);
+ 		schedule();
+ 		spin_lock_irqsave(&cosa->lock, flags);
+ 		if (signal_pending(current) && chan->tx_status == 0) {
+ 			chan->tx_status = 1;
+ 			remove_wait_queue(&chan->txwaitq, &wait);
+-			current->state = TASK_RUNNING;
++			set_current_state(TASK_RUNNING);
+ 			chan->tx_status = 1;
+ 			spin_unlock_irqrestore(&cosa->lock, flags);
+ 			up(&chan->wsem);
+@@ -905,7 +905,7 @@ static ssize_t cosa_write(struct file *file,
+ 		}
+ 	}
+ 	remove_wait_queue(&chan->txwaitq, &wait);
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	up(&chan->wsem);
+ 	spin_unlock_irqrestore(&cosa->lock, flags);
+ 	kfree(kbuf);
+diff --git a/drivers/net/wireless/airo.c b/drivers/net/wireless/airo.c
+index e71a2ce..6aadbfc 100644
+--- a/drivers/net/wireless/airo.c
++++ b/drivers/net/wireless/airo.c
+@@ -3111,7 +3111,7 @@ static int airo_thread(void *data) {
+ 				}
+ 				break;
+ 			}
+-			current->state = TASK_RUNNING;
++			set_current_state(TASK_RUNNING);
+ 			remove_wait_queue(&ai->thr_wait, &wait);
+ 			locked = 1;
+ 		}
+diff --git a/drivers/staging/comedi/drivers/me_daq.c b/drivers/staging/comedi/drivers/me_daq.c
+index 00eaaf8..32e2521 100644
+--- a/drivers/staging/comedi/drivers/me_daq.c
++++ b/drivers/staging/comedi/drivers/me_daq.c
+@@ -175,7 +175,7 @@ struct me_private_data {
+ 
+ static inline void sleep(unsigned sec)
+ {
+-	current->state = TASK_INTERRUPTIBLE;
++	set_current_state(TASK_INTERRUPTIBLE);
+ 	schedule_timeout(sec * HZ);
+ }
+ 
+diff --git a/drivers/staging/dgnc/dgnc_utils.c b/drivers/staging/dgnc/dgnc_utils.c
+index 61efc13..af3f0f1 100644
+--- a/drivers/staging/dgnc/dgnc_utils.c
++++ b/drivers/staging/dgnc/dgnc_utils.c
+@@ -12,7 +12,7 @@
+  */
+ int dgnc_ms_sleep(ulong ms)
+ {
+-	current->state = TASK_INTERRUPTIBLE;
++	set_current_state(TASK_INTERRUPTIBLE);
+ 	schedule_timeout((ms * HZ) / 1000);
+ 	return signal_pending(current);
+ }
+diff --git a/drivers/staging/panel/panel.c b/drivers/staging/panel/panel.c
+index 6d1a320..b37c9cd 100644
+--- a/drivers/staging/panel/panel.c
++++ b/drivers/staging/panel/panel.c
+@@ -719,7 +719,7 @@ static void long_sleep(int ms)
+ 	if (in_interrupt()) {
+ 		mdelay(ms);
+ 	} else {
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		schedule_timeout((ms * HZ + 999) / 1000);
+ 	}
+ }
+diff --git a/drivers/staging/speakup/selection.c b/drivers/staging/speakup/selection.c
+index 507fc9a..e61994a 100644
+--- a/drivers/staging/speakup/selection.c
++++ b/drivers/staging/speakup/selection.c
+@@ -157,7 +157,7 @@ static void __speakup_paste_selection(struct work_struct *work)
+ 		pasted += count;
+ 	}
+ 	remove_wait_queue(&vc->paste_wait, &wait);
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 
+ 	tty_buffer_unlock_exclusive(&vc->port);
+ 	tty_ldisc_deref(ld);
+diff --git a/drivers/staging/unisys/include/timskmod.h b/drivers/staging/unisys/include/timskmod.h
+index b14494f..9c66f32 100644
+--- a/drivers/staging/unisys/include/timskmod.h
++++ b/drivers/staging/unisys/include/timskmod.h
+@@ -142,7 +142,7 @@
+  *  @param x the number of seconds to sleep.
+  */
+ #define SLEEP(x)					     \
+-	do { current->state = TASK_INTERRUPTIBLE;	     \
++	do { set_current_state(TASK_INTERRUPTIBLE);	     \
+ 		schedule_timeout((x)*HZ);		     \
+ 	} while (0)
+ 
+@@ -150,7 +150,7 @@
+  *  @param x the number of jiffies to sleep.
+  */
+ #define SLEEPJIFFIES(x)						    \
+-	do { current->state = TASK_INTERRUPTIBLE;		    \
++	do { set_current_state(TASK_INTERRUPTIBLE);		    \
+ 		schedule_timeout(x);				    \
+ 	} while (0)
+ 
+diff --git a/drivers/tty/serial/serial_core.c b/drivers/tty/serial/serial_core.c
+index eaeb9a0..c161536 100644
+--- a/drivers/tty/serial/serial_core.c
++++ b/drivers/tty/serial/serial_core.c
+@@ -1113,7 +1113,7 @@ uart_wait_modem_status(struct uart_state *state, unsigned long arg)
+ 		cprev = cnow;
+ 	}
+ 
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	remove_wait_queue(&port->delta_msr_wait, &wait);
+ 
+ 	return ret;
+diff --git a/include/linux/jbd.h b/include/linux/jbd.h
+index 31229e0..00857ff 100644
+--- a/include/linux/jbd.h
++++ b/include/linux/jbd.h
+@@ -961,7 +961,7 @@ extern int	cleanup_journal_tail(journal_t *);
+ #define jbd_ENOSYS() \
+ do {								           \
+ 	printk (KERN_ERR "JBD unimplemented function %s\n", __func__); \
+-	current->state = TASK_UNINTERRUPTIBLE;			           \
++	set_current_state(TASK_UNINTERRUPTIBLE);			           \
+ 	schedule();						           \
+ } while (1)
+ 
+diff --git a/include/linux/jbd2.h b/include/linux/jbd2.h
+index 704b9a5..1d01b61 100644
+--- a/include/linux/jbd2.h
++++ b/include/linux/jbd2.h
+@@ -1256,7 +1256,7 @@ extern int jbd2_cleanup_journal_tail(journal_t *);
+ #define jbd_ENOSYS() \
+ do {								           \
+ 	printk (KERN_ERR "JBD unimplemented function %s\n", __func__); \
+-	current->state = TASK_UNINTERRUPTIBLE;			           \
++	set_current_state(TASK_UNINTERRUPTIBLE);			           \
+ 	schedule();						           \
+ } while (1)
+ 
+diff --git a/ipc/sem.c b/ipc/sem.c
+index 454f6c6..df5c489 100644
+--- a/ipc/sem.c
++++ b/ipc/sem.c
+@@ -1933,7 +1933,7 @@ SYSCALL_DEFINE4(semtimedop, int, semid, struct sembuf __user *, tsops,
+ 	queue.sleeper = current;
+ 
+ sleep_again:
+-	current->state = TASK_INTERRUPTIBLE;
++	set_current_state(TASK_INTERRUPTIBLE);
+ 	sem_unlock(sma, locknum);
+ 	rcu_read_unlock();
+ 
+diff --git a/kernel/signal.c b/kernel/signal.c
+index 8f0876f..4c32b4c 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -3538,7 +3538,7 @@ SYSCALL_DEFINE2(signal, int, sig, __sighandler_t, handler)
+ SYSCALL_DEFINE0(pause)
+ {
+ 	while (!signal_pending(current)) {
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		schedule();
+ 	}
+ 	return -ERESTARTNOHAND;
+@@ -3551,7 +3551,7 @@ int sigsuspend(sigset_t *set)
+ 	current->saved_sigmask = current->blocked;
+ 	set_current_blocked(set);
+ 
+-	current->state = TASK_INTERRUPTIBLE;
++	set_current_state(TASK_INTERRUPTIBLE);
+ 	schedule();
+ 	set_restore_sigmask();
+ 	return -ERESTARTNOHAND;
+diff --git a/kernel/time/timer.c b/kernel/time/timer.c
+index 3260ffd..91403c6 100644
+--- a/kernel/time/timer.c
++++ b/kernel/time/timer.c
+@@ -1486,7 +1486,7 @@ signed long __sched schedule_timeout(signed long timeout)
+ 			printk(KERN_ERR "schedule_timeout: wrong timeout "
+ 				"value %lx\n", timeout);
+ 			dump_stack();
+-			current->state = TASK_RUNNING;
++			set_current_state(TASK_RUNNING);
+ 			goto out;
+ 		}
+ 	}
+diff --git a/net/atm/signaling.c b/net/atm/signaling.c
+index 523bce7..aa48ca5 100644
+--- a/net/atm/signaling.c
++++ b/net/atm/signaling.c
+@@ -40,7 +40,7 @@ static void sigd_put_skb(struct sk_buff *skb)
+ 		pr_debug("atmsvc: waiting for signaling daemon...\n");
+ 		schedule();
+ 	}
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	remove_wait_queue(&sigd_sleep, &wait);
+ #else
+ 	if (!sigd) {
+diff --git a/net/irda/ircomm/ircomm_tty.c b/net/irda/ircomm/ircomm_tty.c
+index 61ceb4c..c722903 100644
+--- a/net/irda/ircomm/ircomm_tty.c
++++ b/net/irda/ircomm/ircomm_tty.c
+@@ -829,7 +829,7 @@ static void ircomm_tty_wait_until_sent(struct tty_struct *tty, int timeout)
+ 			break;
+ 	}
+ 	spin_unlock_irqrestore(&self->spinlock, flags);
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ }
+ 
+ /*
+diff --git a/net/irda/irnet/irnet_ppp.c b/net/irda/irnet/irnet_ppp.c
+index 3c83a1e..bac6f65 100644
+--- a/net/irda/irnet/irnet_ppp.c
++++ b/net/irda/irnet/irnet_ppp.c
+@@ -305,7 +305,7 @@ irnet_ctrl_read(irnet_socket *	ap,
+ 
+   /* Put ourselves on the wait queue to be woken up */
+   add_wait_queue(&irnet_events.rwait, &wait);
+-  current->state = TASK_INTERRUPTIBLE;
++  set_current_state(TASK_INTERRUPTIBLE);
+   for(;;)
+     {
+       /* If there is unread events */
+@@ -321,7 +321,7 @@ irnet_ctrl_read(irnet_socket *	ap,
+       /* Yield and wait to be woken up */
+       schedule();
+     }
+-  current->state = TASK_RUNNING;
++  set_current_state(TASK_RUNNING);
+   remove_wait_queue(&irnet_events.rwait, &wait);
+ 
+   /* Did we got it ? */
+diff --git a/sound/oss/msnd_pinnacle.c b/sound/oss/msnd_pinnacle.c
+index c23f9f9..cb0ca03 100644
+--- a/sound/oss/msnd_pinnacle.c
++++ b/sound/oss/msnd_pinnacle.c
+@@ -675,7 +675,7 @@ static void dsp_write_flush(void)
+ 		timeout);
+ 	clear_bit(F_WRITEFLUSH, &dev.flags);
+ 	if (!signal_pending(current)) {
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		schedule_timeout(get_play_delay_jiffies(DAP_BUFF_SIZE));
+ 	}
+ 	clear_bit(F_WRITING, &dev.flags);
+@@ -1288,7 +1288,7 @@ static int __init calibrate_adc(WORD srate)
+ 		       & ~0x0001, dev.SMA + SMA_wCurrHostStatusFlags);
+ 	if (msnd_send_word(&dev, 0, 0, HDEXAR_CAL_A_TO_D) == 0 &&
+ 	    chk_send_dsp_cmd(&dev, HDEX_AUX_REQ) == 0) {
+-		current->state = TASK_INTERRUPTIBLE;
++		set_current_state(TASK_INTERRUPTIBLE);
+ 		schedule_timeout(HZ / 3);
+ 		return 0;
+ 	}
+diff --git a/sound/oss/swarm_cs4297a.c b/sound/oss/swarm_cs4297a.c
+index a33e8ce..642af59 100644
+--- a/sound/oss/swarm_cs4297a.c
++++ b/sound/oss/swarm_cs4297a.c
+@@ -1654,7 +1654,7 @@ static int drain_dac(struct cs4297a_state *s, int nonblock)
+         s->dma_dac.hwptr = s->dma_dac.swptr = hwptr;
+         spin_unlock_irqrestore(&s->lock, flags);
+ 	remove_wait_queue(&s->dma_dac.wait, &wait);
+-	current->state = TASK_RUNNING;
++	set_current_state(TASK_RUNNING);
+ 	return 0;
+ }
+ 
+-- 
+2.1.3
+

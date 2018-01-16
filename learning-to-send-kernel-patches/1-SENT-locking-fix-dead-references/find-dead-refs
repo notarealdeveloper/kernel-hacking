@@ -1,0 +1,17 @@
+#!/bin/bash
+
+blu='\033[01;34m'
+whi='\033[00m'
+
+#kerneldir=/usr/src/linux
+#cd "$kerneldir"
+
+for f in kernel/locking/*.[hc]; do
+	[[ $(grep -r "kernel/$(basename "$f")") > 0 ]]	&&
+	echo -e "${blu}[*] Dead refs to: ${f}${whi}" 	&&
+	grep -r "kernel/$(basename "$f")" 		&&
+	echo "=============================="
+done
+
+# Same thing, more sloppy but quicker
+# for f in kernel/locking/*.c kernel/locking/*.h; do echo "${f}" && grep -r "kernel/$(basename "$f")" && echo "======================="; done

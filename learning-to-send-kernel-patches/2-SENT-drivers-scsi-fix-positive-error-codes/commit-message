@@ -1,0 +1,105 @@
+drivers: scsi: aic7xxx: Fix positive error codes.
+
+There are more instances of the problem described below, but I
+thought I'd explain the first one in detail, to make sure it's
+worth fixing the others (and to make sure I didn't do anything 
+stupid... which I may have). Alright, here we go!
+
+A few drivers seem to return positive error codes internally, in
+order to signal something to a static function in the same driver.
+(see, for example, drivers/staging/lustre/lnet/lnet/lib-move.c)
+That's unusual, but it seems okay as long as they're consistent between
+return codes and return code checks. However, a problem might arise 
+if +ERRORCODE rather than -ERRORCODE is returned to other layers
+of the kernel (e.g., to the driver core). Let's do some exploring...
+
+Here's a function that returns +ENOMEM
+FILE: drivers/scsi/aic7xxx/aic7770_osm.c
+FUNC: aic7770_map_registers
+
+int
+aic7770_map_registers(struct ahc_softc *ahc, u_int port)
+{
+... (clipped for brevity) ..
+
+	if (!request_region(port, AHC_EISA_IOSIZE, "aic7xxx"))
+		return (ENOMEM);
+
+... (clipped for brevity) ..
+}
+
+This may not be a problem, unless we're passing the value
+outside the current module. So who calls this function? 
+$ grep -r -C20 aic7770_map_registers 
+
+Looks like it's only ever called in:
+FILE: drivers/scsi/aic7xxx/aic7770.c
+FUNC: aic7770_config
+
+int aic7770_config(struct ahc_softc *ahc, struct aic7770_identity *entry, u_int io)
+{
+... (code and stuff) ...
+
+	error = aic7770_map_registers(ahc, io);
+	if (error != 0)
+		return (error);
+
+... (code and stuff) ...
+}
+
+Hmm... Let's see who calls this guy.
+$ grep -r -C20 aic7770_config
+
+This too is only called once, in:
+FILE: drivers/scsi/aic7xxx/aic7770_osm.c 
+FUNC: aic7770_probe
+
+static int
+aic7770_probe(struct device *dev)
+{
+... (blah blah blah) ...
+
+	error = aic7770_config(ahc, aic7770_ident_table + edev->id.driver_data,
+			       eisaBase);
+	if (error != 0) {
+		ahc->bsh.ioport = 0;
+		ahc_free(ahc);
+		return (error);
+	}
+
+... (blah blah blah) ...
+}
+
+Same deal as before. Okay, so who calls aic7770_probe?
+As expected, no one calls it, at least not by name.
+It's just the .probe function in the following struct:
+
+FILE: drivers/scsi/aic7xxx/aic7770_osm.c
+
+static struct eisa_driver aic7770_driver = {
+	.id_table	= aic7770_ids,
+	.driver = {
+		.name   = "aic7xxx",
+		.probe  = aic7770_probe,
+		.remove = aic7770_remove,
+	}
+};
+
+
+So the function *is* being passed to another layer of the kernel,
+in which case the return code should probably be negative.
+
+There are lots of similar examples in the same driver. I'd be happy
+to fix them up, but I thought I should first make sure I didn't do 
+anything stupid (which I may have).
+
+Ooh! One more thing, just to be safe. Above, I assumed that grepping
+the kernel tree would give us all the places where an identifier shows 
+up, but maybe this driver does something clever with the preprocessor.
+
+$ grep -r '##' drivers/scsi/aic7xxx/
+
+Okay good, so there shouldn't be any ## magic messing with our greps.
+Alright, I guess I should send this patch off now.
+Hopefully it's not too dumb! :-)
+

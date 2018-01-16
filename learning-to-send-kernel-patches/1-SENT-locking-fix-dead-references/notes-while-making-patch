@@ -1,0 +1,79 @@
+In include/linux/semaphore.h, the banner says:
+
+ * Please see kernel/semaphore.c for documentation of these functions
+
+Commit e25a64c4017e3a3cda17454b040737e410a12991 moved this file
+to kernel/locking/semaphore.c, so just update the comment.
+
+
+/************************************
+ * Generated from my deadref script *
+ ************************************/
+
+=======================
+[*] Deadrefs to kernel/locking/lockdep.c
+kernel/locking/lockdep.c: * kernel/lockdep.c
+tools/perf/builtin-lock.c:/* based on kernel/lockdep.c */
+=======================
+[*] Deadrefs to kernel/locking/lockdep_proc.c
+kernel/locking/lockdep_proc.c: * kernel/lockdep_proc.c
+=======================
+[*] Deadrefs to kernel/locking/mutex-debug.c
+kernel/locking/mutex-debug.h: * More details are in kernel/mutex-debug.c.
+kernel/locking/mutex-debug.c: * kernel/mutex-debug.c
+=======================
+[*] Deadrefs to kernel/locking/rwsem.c
+kernel/locking/rwsem.c:/* kernel/rwsem.c: R/W semaphores, public implementation
+=======================
+[*] Deadrefs to kernel/locking/semaphore.c
+kernel/locking/rwsem-xadd.c: * Derived from arch/i386/kernel/semaphore.c
+include/linux/semaphore.h: * Please see kernel/semaphore.c for documentation of these functions
+=======================
+[*] Deadrefs to kernel/locking/spinlock.c
+include/linux/rwlock_api_smp.h: * (implemented in kernel/spinlock.c)
+include/linux/spinlock_api_smp.h: * (implemented in kernel/spinlock.c)
+=======================
+[*] Deadrefs to kernel/locking/lockdep_internals.h
+kernel/locking/lockdep_internals.h: * kernel/lockdep_internals.h
+=======================
+[*] Deadrefs to kernel/locking/lockdep_states.h
+include/linux/lockdep.h: * We'd rather not expose kernel/lockdep_states.h this wide, but we do need
+Documentation/locking/lockdep-design.txt:Where STATE can be either one of (kernel/lockdep_states.h)
+=======================
+
+
+/*****************************************************
+ * Independent verification using a different method *
+ *****************************************************/
+
+=======================
+[*] kernel/locking/lockdep.c
+kernel/locking/lockdep.c: * kernel/lockdep.c
+tools/perf/builtin-lock.c:/* based on kernel/lockdep.c */
+=======================
+[*] kernel/locking/lockdep_proc.c
+kernel/locking/lockdep_proc.c: * kernel/lockdep_proc.c
+=======================
+[*] kernel/locking/mutex-debug.c
+kernel/locking/mutex-debug.h: * More details are in kernel/mutex-debug.c.
+kernel/locking/mutex-debug.c: * kernel/mutex-debug.c
+=======================
+[*] kernel/locking/rwsem.c
+kernel/locking/rwsem.c:/* kernel/rwsem.c: R/W semaphores, public implementation
+=======================
+[*] kernel/locking/semaphore.c
+kernel/locking/rwsem-xadd.c: * Derived from arch/i386/kernel/semaphore.c
+include/linux/semaphore.h: * Please see kernel/semaphore.c for documentation of these functions
+=======================
+[*] kernel/locking/spinlock.c
+include/linux/rwlock_api_smp.h: * (implemented in kernel/spinlock.c)
+include/linux/spinlock_api_smp.h: * (implemented in kernel/spinlock.c)
+=======================
+[*] kernel/locking/lockdep_internals.h
+kernel/locking/lockdep_internals.h: * kernel/lockdep_internals.h
+=======================
+[*] kernel/locking/lockdep_states.h
+include/linux/lockdep.h: * We'd rather not expose kernel/lockdep_states.h this wide, but we do need
+Documentation/locking/lockdep-design.txt:Where STATE can be either one of (kernel/lockdep_states.h)
+=======================
+

@@ -1,0 +1,27 @@
+--- atkbd.c	2014-11-12 23:11:22.419524661 -0800
++++ /usr/src/linux-3.18-rc4/drivers/input/keyboard/atkbd.c	2014-11-12 23:28:33.182318647 -0800
+@@ -998,12 +998,23 @@
+  * atkbd_set_keycode_table() initializes keyboard's keycode table
+  * according to the selected scancode set
+  */
+-
++#include <linux/printk.h>
+ static void atkbd_set_keycode_table(struct atkbd *atkbd)
+ {
+ 	unsigned int scancode;
+ 	int i, j;
+ 
++	/* Note: The relevant array is declared inside the atkbd struct as:
++	 * unsigned short keycode[ATKBD_KEYMAP_SIZE]; 
++	 */
++	for (i = 0; i < ATKBD_KEYMAP_SIZE; i++) {
++		// This line makes sure that adding 1 to atkbd->keycode adds 2 to the memory location (I'm being paranoid)
++		// printk("atkbd->keycode + %d == %p\n", i, atkbd->keycode + i);
++		// This line prints outs the relevant memory before the memset, to make sure it's all zeros.
++		// printk("atkbd->keycode[%d] == %d\n", i, (unsigned short)(atkbd->keycode[i]));
++		printk("atkbd->keycode[%d] == %d\n", i, atkbd->keycode[i]);
++	}
++
+ 	memset(atkbd->keycode, 0, sizeof(atkbd->keycode));
+ 	bitmap_zero(atkbd->force_release_mask, ATKBD_KEYMAP_SIZE);
+ 

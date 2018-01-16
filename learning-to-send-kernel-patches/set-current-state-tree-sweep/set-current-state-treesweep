@@ -1,0 +1,201 @@
+From page 156 (pdf page 174) of LDD:
+==============================================================
+In the 2.6 kernel, it is not normally necessary for driver code to manipulate the process state directly. 
+However, should you need to do so, the call to use is:
+
+void set_current_state(int new_state);
+
+In older code, you often see something like this instead:
+
+current->state = TASK_INTERRUPTIBLE;
+
+But changing current directly in that manner is discouraged; such code breaks easily when data structures change. 
+The above code does show, however, that changing the current state of a process does not, by itself, put it to sleep. 
+By changing the current state, you have changed the way the scheduler treats a process, but you have not yet yielded the processor.
+
+...
+==============================================================
+
+# This suggests a possible tree sweep.
+# Let's search for everywhere in the tree where current->state is set to TASK_.*
+# directly, rather than setting it using set_current_state
+
+$ cd /usr/src/linux
+
+### INFORMATION GATHERING ###
+
+# First, make sure that set_current_state still exists.
+$ finddef set_current_state
+include/linux/sched.h set_current_state 264 #define set_current_state(state_value) \
+$ ge include/linux/sched.h
+
+# Its definition is:
+#define set_current_state(state_value)		\
+	set_mb(current->state, (state_value))
+
+# Presumably, mb stands for "memory barrier"
+
+$ finddef set_mb
+arch/x86/um/asm/barrier.h set_mb 54 #define set_mb(var, value) do { var = value; barrier(); } while (0)
+$ ge arch/x86/um/asm/barrier.h
+$ ge include/asm-generic/barrier.h
+
+# The asm-generic definition:
+#ifndef set_mb
+#define set_mb(var, value)  do { (var) = (value); mb(); } while (0)
+#endif
+
+# The arch/x86/um/asm definition
+#define set_mb(var, value) do { (void)xchg(&var, value); } while (0)
+
+### THE POINT ###
+# Whatever the details of set_current_state (which is really set_mb, which varies by architecture), this should make it clear that
+# set_current_state is doing something non-trivial. As a result, the following tree sweep may be justified. Let's do it.
+
+$ grep -r 'current->state.*=.*TASK_'
+
+arch/x86/xen/smp.c:		current->state = TASK_UNINTERRUPTIBLE;
+kernel/sched/core.c: * the simpler "current->state = TASK_RUNNING" to mark yourself
+kernel/time/timer.c:			current->state = TASK_RUNNING;
+kernel/signal.c:		current->state = TASK_INTERRUPTIBLE;
+kernel/signal.c:	current->state = TASK_INTERRUPTIBLE;
+include/linux/jbd.h:	current->state = TASK_UNINTERRUPTIBLE;			           \
+include/linux/jbd2.h:	current->state = TASK_UNINTERRUPTIBLE;			           \
+ipc/sem.c:	current->state = TASK_INTERRUPTIBLE;
+drivers/media/common/saa7146/saa7146_vbi.c:		current->state = TASK_INTERRUPTIBLE;
+drivers/media/common/saa7146/saa7146_vbi.c:		current->state = TASK_RUNNING;
+drivers/isdn/hardware/mISDN/hfcpci.c:		current->state = TASK_UNINTERRUPTIBLE;
+drivers/block/swim.c:			current->state = TASK_INTERRUPTIBLE;
+drivers/block/swim.c:		current->state = TASK_INTERRUPTIBLE;
+drivers/block/swim.c:		current->state = TASK_INTERRUPTIBLE;
+drivers/usb/core/urb.c: *   (c) current->state != TASK_RUNNING, this is the case only after
+drivers/tty/serial/serial_core.c:	current->state = TASK_RUNNING;
+drivers/net/wan/cosa.c:		current->state = TASK_INTERRUPTIBLE;
+drivers/net/wan/cosa.c:			current->state = TASK_RUNNING;
+drivers/net/wan/cosa.c:	current->state = TASK_RUNNING;
+drivers/net/wan/cosa.c:		current->state = TASK_INTERRUPTIBLE;
+drivers/net/wan/cosa.c:			current->state = TASK_RUNNING;
+drivers/net/wan/cosa.c:	current->state = TASK_RUNNING;
+drivers/net/usb/hso.c:	current->state = TASK_RUNNING;
+drivers/net/wireless/airo.c:			current->state = TASK_RUNNING;
+drivers/staging/unisys/include/timskmod.h:	do { current->state = TASK_INTERRUPTIBLE;	     \
+drivers/staging/unisys/include/timskmod.h:	do { current->state = TASK_INTERRUPTIBLE;		    \
+drivers/staging/comedi/drivers/me_daq.c:	current->state = TASK_INTERRUPTIBLE;
+drivers/staging/dgnc/dgnc_utils.c:	current->state = TASK_INTERRUPTIBLE;
+drivers/staging/panel/panel.c:		current->state = TASK_INTERRUPTIBLE;
+drivers/staging/speakup/selection.c:	current->state = TASK_RUNNING;
+drivers/macintosh/via-pmu.c:	current->state = TASK_INTERRUPTIBLE;
+drivers/macintosh/via-pmu.c:	current->state = TASK_RUNNING;
+net/atm/signaling.c:	current->state = TASK_RUNNING;
+net/irda/ircomm/ircomm_tty.c:	current->state = TASK_RUNNING;
+net/irda/irnet/irnet_ppp.c:  current->state = TASK_INTERRUPTIBLE;
+net/irda/irnet/irnet_ppp.c:  current->state = TASK_RUNNING;
+virt/kvm/kvm_main.c:	if (current->state == TASK_RUNNING)
+sound/oss/swarm_cs4297a.c:	current->state = TASK_RUNNING;
+sound/oss/msnd_pinnacle.c:		current->state = TASK_INTERRUPTIBLE;
+sound/oss/msnd_pinnacle.c:		current->state = TASK_INTERRUPTIBLE;
+
+
+# Now, obviously, we don't want to replace all of these with set_current_state, 
+# because some of them may be in the implementation of set_current_state. We'd have to check for that in detail.
+
+# Still, most of these should be changeable, especially ones in the non core areas, like 
+# drivers/staging/comedi/drivers/me_daq.c,
+# drivers/macintosh/via-pmu.c, 
+# etc.
+
+
+##################################################
+### MAKING THE CHANGES, AND MAKING THE PATCHES ###
+##################################################
+
+# Get a list of all the places this usage occurs:
+$ grep -Er 'current->state[ \t]*=[ \t]*TASK_[A-Z]*;' | grep -v 'Binary file' | cut -d: -f1 | sort | uniq
+
+arch/x86/xen/smp.c
+drivers/block/swim.c
+drivers/isdn/hardware/mISDN/hfcpci.c
+drivers/macintosh/via-pmu.c
+drivers/media/common/saa7146/saa7146_vbi.c
+drivers/net/usb/hso.c
+drivers/net/wan/cosa.c
+drivers/net/wireless/airo.c
+drivers/staging/comedi/drivers/me_daq.c
+drivers/staging/dgnc/dgnc_utils.c
+drivers/staging/panel/panel.c
+drivers/staging/speakup/selection.c
+drivers/staging/unisys/include/timskmod.h
+drivers/tty/serial/serial_core.c
+include/linux/jbd2.h
+include/linux/jbd.h
+ipc/sem.c
+kernel/signal.c
+kernel/time/timer.c
+net/atm/signaling.c
+net/irda/ircomm/ircomm_tty.c
+net/irda/irnet/irnet_ppp.c
+sound/oss/msnd_pinnacle.c
+sound/oss/swarm_cs4297a.c
+
+# More programatically, also removing kernel/ stuff just in case
+list=($(grep -Er 'current->state[ \t]*=[ \t]*TASK_[A-Z]*;' | grep -Ev 'Binary|kernel/' | cut -d: -f1 | sort | uniq))
+echo ${list[@]}
+
+# Or, don't exclude the kernel/ directory. Thunderdome it!
+list=($(grep -Er 'current->state[ \t]*=[ \t]*TASK_[A-Z]*;' | grep -Ev 'Binary' | cut -d: -f1 | sort | uniq))
+echo ${list[@]}
+
+# Use sed to do the search and replace. Test it as follows before we actually change any files.
+for f in ${list[@]}; do 
+	sed -r 's@current->state[ \t]*=[ \t]*(TASK_[A-Z]*);@set_current_state(\1);@' "$f" | grep set_current_state; 
+done
+
+# Then make the changes, as follows:
+for f in ${list[@]}; do 
+	sed -i -r 's@current->state[ \t]*=[ \t]*(TASK_[A-Z]*);@set_current_state(\1);@' "$f"
+done
+
+# Note, these files were already using the TASK_BLAH macros, so they must have already included linux/sched.h.
+# Hence, we shouldn't have to fix up the includes (I may be wrong about this, but I doubt it).
+git commit -a -s
+
+###########################################################
+sched: update various files to use set_current_state
+
+From Linux Device Drivers (3rd edition), pg 155:
+
+"...should you need to [manipulate the process state directly], the call to use is:
+void set_current_state(int new_state);
+In older code, you often see something like this instead:
+current->state = TASK_INTERRUPTIBLE;
+But changing current directly in that manner is discouraged; 
+such code breaks easily when data structures change."
+
+This patch changes various files throughout the tree to use
+set_current_state, instead of setting current->state directly.
+
+Granted, current->state has been around for awhile, so the 
+above-mentioned problem of changing data structures may not 
+be a problem in this particular case. Still, using set_current_state 
+also adds a memory barrier to the set operation, which may be helpful.
+
+Note: I'm new to kernel development, and just doing it as a hobby,
+so please assume that I'm a complete moron, because I probably am.
+Apologies in advance if this patch is obviously stupid. :-)
+
+Signed-off-by: Jason Wilkes <letshaveanadventure@gmail.com>
+###########################################################
+
+kernel-build
+git diff master..waffles
+git format-patch master..waffles
+scripts/checkpatch.pl     0001-sched-update-various-files-to-use-set_current_state.patch
+scripts/get_maintainer.pl 0001-sched-update-various-files-to-use-set_current_state.patch
+
+# Heheh... I changed so many files that get_maintainer completely takes a shit.
+$ scripts/get_maintainer.pl 0001-*.patch | wc -l
+72
+# Top lel...
+
+
+
