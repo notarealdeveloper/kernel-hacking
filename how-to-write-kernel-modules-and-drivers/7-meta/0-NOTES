@@ -1,3 +1,5 @@
+#####################################################################
+
 # list stuff
 
 #define list_for_each_entry(pos, head, member)				\
@@ -22,3 +24,35 @@
 #define list_next_entry(pos, member) \
 	container_of((pos)->member.next, typeof(*(pos)), member)
 
+#####################################################################
+
+Magic SysRq Key.
+If you set CONFIG_MAGIC_SYSRQ=y or typed 'echo 1 > /proc/sys/kernel/sysrq', you can use SysRq Key (on PPC or i386) 'Alt+PrintScreen'.
+
+SysRq+b Restart computer
+
+SysRq+e Send SIGTERM to all tasks (with out init !!!)
+
+SysRq+h Help
+
+SysRq+i Send SIGKILL to all tasks (with out init !!!)
+
+SysRq+k Kill all tasks ran from this console
+
+SysRq+l Send SIGTKILL to all tasks (with init !!!)
+
+SysRq+m Dump core and show it on console
+
+SysRq+o Halt system and shutdown it
+
+SysRq+p Print CPU registers on console
+
+SysRq+r Change keyboard from RAW to XLATE
+
+SysRq+s Save dirty buffers on HDD
+
+SysRq+t Show current task info on console
+
+SysRq+u Unmount all filesystems, and remount read only
+
+Note that every user can use SysRq keys, and it can work improperly on an unstable system.

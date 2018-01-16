@@ -2,9 +2,12 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include "kapi.h"
+#include "state.h"
 
-/* For more fun things to do, cat System.map
- * and grep for interesting words, (e.g., "current") */
+/* More fun things to do:
+ * (1) cat System.map, and grep for interesting words, (e.g., "current")
+ * (2) visit http://en.wikipedia.org/wiki/Magic_SysRq_key
+ */
 
 MODULE_LICENSE("GPL");
 
@@ -21,6 +24,8 @@ static int kmod_init(void)
 	kmod_get_retarded();
 	procs_print_task(NULL);
 	procs_psaux();
+	setup_regs_for_test();
+	state_dump();
 	return 0;
 }
 

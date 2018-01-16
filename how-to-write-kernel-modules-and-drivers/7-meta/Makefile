@@ -1,9 +1,9 @@
 # This is for the final .ko file
 obj-m		+= waffles.o
 # Object files for each source file
-waffles-objs	:= main.o sysfs.o modules.o procs.o
+waffles-objs	:= main.o sysfs.o modules.o procs.o state.o
 
-ccflags-y += -Werror -Wno-unused-function -Wno-error=unused-variable
+ccflags-y += -Werror -Wno-error=unused-variable -Wno-unused-function
 
 default:
 	make -C /usr/src/linux M=${PWD} modules
